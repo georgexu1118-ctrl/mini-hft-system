@@ -88,6 +88,13 @@ async def submit_order(
     PARTIALLY_FILLED. The latency fields show exactly how long each phase
     of processing took.
     """
+    # Validate that LIMIT orders carry a price
+    if req.order_type == OrderType.LIMIT and req.price is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="LIMIT orders require a price",
+        )
+
     order = Order(
         symbol=req.symbol,
         side=req.side,
