@@ -425,8 +425,8 @@ Connect to `ws://localhost:8000/api/v1/market-data/ws`
 | **M4** | PostgreSQL persistence (async writer) | Done |
 | **M5** | Strategy sandbox + executor | Done |
 | **M6** | Next.js dashboard — order book, latency chart, strategy UI | Done |
-| **M7** | C++ matching engine (Python binding via ctypes/pybind11) | 🔜 Future |
-| **M8** | FPGA research notes + simulation | 🔜 Future |
+| **M7** | C++ CLOB engine scaffold — headers, order_book.cpp, pybind11 binding | Done (scaffold) |
+| **M8** | FPGA HAL scaffold — PCIe DMA ring architecture, XRT integration | Done (scaffold) |
 
 ---
 
@@ -477,4 +477,5 @@ Key FPGA concepts to explore:
 
 Built as a learning project. PRs welcome for:
 - Additional order types (Stop, Stop-Limit, Iceberg)
-- C++ engine binding (M7)
+- C++ pybind11 binding completion — compile hft_engine_cpp.so (M7)
+- FPGA hardware bring-up — XRT driver + bitstream deployment (M8)
