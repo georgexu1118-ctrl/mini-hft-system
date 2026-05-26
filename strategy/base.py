@@ -1,50 +1,45 @@
-"""
-Abstract strategy interface.
-
-The Strategy pattern separates trading logic from execution infrastructure.
-A strategy receives market events and emits orders. It never touches sockets,
-databases, or the matching engine directly — those are infrastructure concerns.
-
-This mirrors the quant/dev split at HFT firms:
-  - Quants own Strategy subclasses (pure math, market logic)
-  - Devs own the execution infrastructure (OrderService, risk, connectivity)
-
-A quant can write a strategy knowing only:
-  - on_book_update(snapshot) → [Order, ...]
-  - on_trade(trade)          → [Order, ...]
-  - on_fill(order, trade)    → None
-
-And trust that the infrastructure handles everything else.
-"""
+"""Strategy contract and position/PnL accounting kept outside matching."""
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from engine.core.order import Order, Trade
 from engine.core.order_book import BookSnapshot
 from engine.core.types import Symbol
 
 
-@dataclass
+@dataclass(slots=True)
 class StrategyState:
-    """Runtime state tracked per strategy. Mutable during execution."""
-    position: int = 0          # net shares (positive = long, negative = short)
-    realised_pnl: float = 0.0  # locked-in P&L from closed positions
+    """Mutable strategy ledger; filled inventory is valued at the latest mark."""
+
+    position: int = 0
+    average_entry_price: float = 0.0
+    realised_pnl: float = 0.0
     unrealised_pnl: float = 0.0
+    mark_price: float | None = None
     total_fills: int = 0
     total_notional: float = 0.0
+    orders_submitted: int = 0
+    risk_rejections: int = 0
+    killed_reason: str | None = None
+
+    @property
+    def total_pnl(self) -> float:
+        return self.realised_pnl + self.unrealised_pnl
 
 
-class Strategy(ABC):
+class BaseStrategy(ABC):
     """
-    Base class for all strategies.
+    Event-driven strategy contract.
 
-    Subclass this, implement on_book_update and on_trade,
-    return a list of Order objects to submit. Empty list = do nothing.
-
-    The executor (not yet implemented — Milestone 5) calls these methods
-    as events arrive and submits the returned orders through OrderService.
+    Strategies return order intents only. The runtime applies limits and uses
+    an order gateway, so no strategy can mutate engine books or bypass risk.
+    That separation also permits the same callback sequence to be replayed.
     """
+
+    # Quote-style strategies request cancel/replace semantics on a new quote set.
+    replace_open_orders: bool = False
 
     def __init__(
         self,
@@ -60,63 +55,65 @@ class Strategy(ABC):
         self._state = StrategyState()
         self._is_running = False
 
-    # ── Abstract interface ────────────────────────────────────────────────────
-
     @abstractmethod
     def on_book_update(self, snapshot: BookSnapshot) -> list[Order]:
-        """
-        Called on every order book update for `self.symbol`.
-        Return orders to submit (may be empty).
-        """
+        """Return orders proposed in response to level-two market data."""
         ...
 
     @abstractmethod
     def on_trade(self, trade: Trade) -> list[Order]:
-        """
-        Called on every public trade print for `self.symbol`.
-        Return orders to submit (may be empty).
-        """
+        """Return orders proposed in response to an execution print."""
         ...
 
-    # ── Lifecycle hooks (optional override) ───────────────────────────────────
-
     def on_fill(self, order: Order, trade: Trade) -> None:
-        """
-        Called when one of *this strategy's* orders is filled.
-        Update P&L and position tracking here.
-        """
-        qty = trade.quantity
-        notional = trade.price * qty
+        """Update average-cost PnL for one fill in an owned order."""
+        signed_quantity = trade.quantity if order.is_buy else -trade.quantity
+        prior_position = self._state.position
+        prior_average = self._state.average_entry_price
 
-        if order.is_buy:
-            self._state.position += qty
-            self._state.unrealised_pnl -= notional
+        if prior_position == 0 or prior_position * signed_quantity > 0:
+            new_position = prior_position + signed_quantity
+            prior_value = abs(prior_position) * prior_average
+            fill_value = abs(signed_quantity) * trade.price
+            self._state.average_entry_price = (prior_value + fill_value) / abs(new_position)
         else:
-            self._state.position -= qty
-            self._state.unrealised_pnl += notional
+            closing_quantity = min(abs(prior_position), abs(signed_quantity))
+            direction = 1 if prior_position > 0 else -1
+            self._state.realised_pnl += (
+                (trade.price - prior_average) * closing_quantity * direction
+            )
+            new_position = prior_position + signed_quantity
+            if new_position == 0:
+                self._state.average_entry_price = 0.0
+            elif prior_position * new_position < 0:
+                self._state.average_entry_price = trade.price
 
+        self._state.position = prior_position + signed_quantity
         self._state.total_fills += 1
-        self._state.total_notional += notional
+        self._state.total_notional += trade.notional
+        self.mark_to_market(trade.price)
+
+    def mark_to_market(self, price: float) -> None:
+        self._state.mark_price = price
+        self._state.unrealised_pnl = (
+            (price - self._state.average_entry_price) * self._state.position
+        )
 
     def on_start(self) -> None:
-        """Called when the strategy is started. Override for initialisation."""
-        pass
+        """Optional initialization hook."""
 
     def on_stop(self) -> None:
-        """Called before the strategy is stopped. Override for cleanup."""
-        pass
-
-    # ── Control ───────────────────────────────────────────────────────────────
+        """Optional shutdown hook."""
 
     def start(self) -> None:
+        self._state.killed_reason = None
         self._is_running = True
         self.on_start()
 
-    def stop(self) -> None:
+    def stop(self, reason: str | None = None) -> None:
         self._is_running = False
+        self._state.killed_reason = reason
         self.on_stop()
-
-    # ── Properties ────────────────────────────────────────────────────────────
 
     @property
     def is_running(self) -> bool:
@@ -130,10 +127,6 @@ class Strategy(ABC):
     def position(self) -> int:
         return self._state.position
 
-    def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"id={self.strategy_id}, "
-            f"pos={self._state.position}, "
-            f"pnl={self._state.realised_pnl:.2f})"
-        )
+
+# Preserve the public name used by existing example strategies.
+Strategy = BaseStrategy

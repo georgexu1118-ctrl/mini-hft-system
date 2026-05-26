@@ -83,6 +83,12 @@ Real exchange matching engines process one order at a time per partition (instru
 
 In C++: one CPU core pinned exclusively to the engine thread. No context switches. The OS scheduler never interrupts it.
 
+### 2a. Isolated Strategy Runtime (M5)
+
+`StrategyRuntime` consumes ordered book and trade events outside matching and exposes a narrow `OrderGateway` protocol backed by `OrderService`. A strategy can propose orders, but it cannot reach an order book directly: maximum order size, inventory/notional limits, ownership attribution, and the kill switch are enforced before submission. A failing callback stops and cancels only that strategy's working orders.
+
+`SimpleMarketMaker` now performs cancel/replace quoting on meaningful market moves, quotes both sides of an inventory-adjusted reservation price, and refreshes quotes after fills. The runtime accounts for positions and average-cost realised/unrealised PnL. Its synchronous `replay()` entry point processes the same ordered domain events without wall-clock scheduling, because reproducible backtests and incident reconstruction depend on deterministic event order.
+
 ### 3. Pure Computation Boundary
 
 `engine/` has zero dependency on FastAPI, SQLAlchemy, or asyncio. Its interface is:
@@ -248,6 +254,8 @@ mini-hft-system/
 │
 ├── strategy/                   # Strategy framework
 │   ├── base.py                 # Abstract Strategy base class
+│   ├── risk.py                 # Per-strategy pre-trade controls
+│   ├── runtime.py              # Event-driven executor, PnL, kill switch/replay
 │   └── examples/
 │       └── market_maker.py     # Simple symmetric MM strategy
 │
@@ -369,7 +377,7 @@ Connect to `ws://localhost:8000/api/v1/market-data/ws`
 | **M2** | FastAPI backend + WebSocket | ✅ Done |
 | **M3** | Market data feed (GBM) | ✅ Done |
 | **M4** | PostgreSQL persistence (async writer) | Done |
-| **M5** | Strategy sandbox + executor | 🔜 Planned |
+| **M5** | Strategy sandbox + executor | Done |
 | **M6** | Next.js dashboard (order book ladder, latency charts) | 🔜 Planned |
 | **M7** | C++ matching engine (Python binding via ctypes/pybind11) | 🔜 Future |
 | **M8** | FPGA research notes + simulation | 🔜 Future |
@@ -423,6 +431,5 @@ Key FPGA concepts to explore:
 
 Built as a learning project. PRs welcome for:
 - Additional order types (Stop, Stop-Limit, Iceberg)
-- Strategy executor (M5)
 - Frontend dashboard (M6)
 - C++ engine binding (M7)

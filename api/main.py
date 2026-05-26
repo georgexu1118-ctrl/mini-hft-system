@@ -59,6 +59,7 @@ from shared.events import (
     TickerEvent,
     TradeEvent,
 )
+from strategy.runtime import StrategyRuntime
 
 # ── Event → WS message translation ───────────────────────────────────────────
 
@@ -194,6 +195,7 @@ async def lifespan(app: FastAPI):
     event_bus: EventBus = app.state.event_bus
     ws_manager: ConnectionManager = app.state.ws_manager
     persistence_writer: AsyncDatabaseWriter | None = app.state.persistence_writer
+    strategy_runtime: StrategyRuntime = app.state.strategy_runtime
 
     # Register instruments
     for sym in DEFAULT_SYMBOLS:
@@ -217,6 +219,7 @@ async def lifespan(app: FastAPI):
     writer_task: asyncio.Task[None] | None = None
     if persistence_writer:
         writer_task = asyncio.create_task(persistence_writer.run())
+    strategy_task = asyncio.create_task(strategy_runtime.run())
 
     yield  # ← Application serves requests here
 
@@ -224,6 +227,8 @@ async def lifespan(app: FastAPI):
     for t in tasks:
         t.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
+    strategy_task.cancel()
+    await asyncio.gather(strategy_task, return_exceptions=True)
     if persistence_writer and writer_task:
         persistence_writer.request_stop()
         await writer_task
@@ -247,6 +252,7 @@ def create_app() -> FastAPI:
     app.state.event_bus = EventBus(queue_depth=settings.event_queue_depth)
     app.state.ws_manager = ConnectionManager()
     app.state.order_service = OrderService(app.state.engine, app.state.event_bus)
+    app.state.strategy_runtime = StrategyRuntime(app.state.event_bus, app.state.order_service)
     app.state.persistence_writer = None
     if settings.persistence_enabled:
         app.state.persistence_writer = AsyncDatabaseWriter(

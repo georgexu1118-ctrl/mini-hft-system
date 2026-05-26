@@ -9,11 +9,10 @@ Key risks:
   Adverse selection    — informed traders pick off your quotes before you move
   Volatility risk      — wide spreads protect margins but reduce fill rate
 
-This implementation is intentionally simple (no inventory skewing, no
-volatility filter) to illustrate the core concept cleanly.
+This implementation applies an inventory reservation-price skew and delegates
+cancel/replace and hard limit enforcement to StrategyRuntime.
 
 Real MM strategies add:
-  - Quote skewing based on current position (reduce long-side when long)
   - Cancel + requote when mid moves by > N ticks (avoid stale quotes)
   - Volatility regime detection (widen spread during high vol)
   - Fee optimisation (maker rebates vs taker fees on specific venues)
@@ -28,7 +27,7 @@ from strategy.base import Strategy
 
 class SimpleMarketMaker(Strategy):
     """
-    Posts symmetric bid/ask quotes around the mid-price.
+    Posts two-sided quotes around an inventory-adjusted reservation price.
 
     Parameters
     ──────────
@@ -40,6 +39,8 @@ class SimpleMarketMaker(Strategy):
                        cancelling old quotes and requoting.
     """
 
+    replace_open_orders = True
+
     def __init__(
         self,
         strategy_id: str,
@@ -47,6 +48,7 @@ class SimpleMarketMaker(Strategy):
         spread_ticks: float = 0.05,
         quote_size: int = 100,
         requote_threshold: float = 0.02,
+        inventory_skew_ticks: float = 0.10,
         capital: float = 100_000.0,
         max_position: int = 500,
     ) -> None:
@@ -54,20 +56,17 @@ class SimpleMarketMaker(Strategy):
         self.spread_ticks = spread_ticks
         self.quote_size = quote_size
         self.requote_threshold = requote_threshold
+        self.inventory_skew_ticks = inventory_skew_ticks
 
         self._last_quoted_mid: float | None = None
         self._active_bid_id: str | None = None
         self._active_ask_id: str | None = None
 
     def on_book_update(self, snapshot: BookSnapshot) -> list[Order]:
-        if not self._is_running or not snapshot.mid_price:
+        if not self._is_running or snapshot.mid_price is None:
             return []
 
         mid = snapshot.mid_price
-
-        # Risk gate: don't add to a lopsided position
-        if abs(self.position) >= self.max_position:
-            return []
 
         # Requote only when mid moves meaningfully (avoid churn and fees)
         if self._last_quoted_mid is not None:
@@ -75,12 +74,17 @@ class SimpleMarketMaker(Strategy):
                 return []
 
         self._last_quoted_mid = mid
-        bid_price = round(mid - self.spread_ticks, 2)
-        ask_price = round(mid + self.spread_ticks, 2)
+        # Long inventory shifts the reservation price down: bid fills become
+        # less likely while ask fills recycle risk back toward flat.
+        inventory_ratio = self.position / self.max_position if self.max_position else 0.0
+        reservation_price = mid - inventory_ratio * self.inventory_skew_ticks
+        bid_price = round(reservation_price - self.spread_ticks, 2)
+        ask_price = round(reservation_price + self.spread_ticks, 2)
 
         orders: list[Order] = []
 
-        orders.append(Order(
+        if self.position < self.max_position:
+            orders.append(Order(
             symbol=self.symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
@@ -89,8 +93,9 @@ class SimpleMarketMaker(Strategy):
             time_in_force=TimeInForce.GTC,
             strategy_id=self.strategy_id,
             client_order_id=f"{self.strategy_id}-bid",
-        ))
-        orders.append(Order(
+            ))
+        if self.position > -self.max_position:
+            orders.append(Order(
             symbol=self.symbol,
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
@@ -99,7 +104,7 @@ class SimpleMarketMaker(Strategy):
             time_in_force=TimeInForce.GTC,
             strategy_id=self.strategy_id,
             client_order_id=f"{self.strategy_id}-ask",
-        ))
+            ))
 
         return orders
 
@@ -108,3 +113,8 @@ class SimpleMarketMaker(Strategy):
         # Advanced version: detect large prints that signal informed flow
         # and temporarily widen spread or pull quotes.
         return []
+
+    def on_fill(self, order: Order, trade: Trade) -> None:
+        super().on_fill(order, trade)
+        # Following a fill the next book event must publish inventory-aware quotes.
+        self._last_quoted_mid = None
