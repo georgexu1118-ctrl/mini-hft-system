@@ -49,6 +49,24 @@ class Order:
     processed_at_ns: TimestampNs = 0   # matching complete
     acked_at_ns: TimestampNs = 0       # ack dispatched to client
 
+    # ── Binary codec (lazy import avoids circular dep) ────────────────────────
+
+    def to_bytes(self) -> bytes:
+        """Encode to 64-byte cache-line-aligned frame for DMA/ring-buffer path."""
+        from engine.core.binary_protocol import OrderCodec
+        return OrderCodec.encode(self)
+
+    def encode_into(self, buf: bytearray, offset: int = 0) -> None:
+        """Zero-copy encode directly into a pre-allocated bytearray."""
+        from engine.core.binary_protocol import OrderCodec
+        OrderCodec.encode_into(self, buf, offset)
+
+    @classmethod
+    def from_bytes(cls, data: bytes | bytearray, offset: int = 0) -> "Order":
+        """Decode from a 64-byte frame (e.g. from SPSC ring buffer slot)."""
+        from engine.core.binary_protocol import OrderCodec
+        return OrderCodec.decode(data, offset)
+
     @property
     def remaining_quantity(self) -> Quantity:
         return self.quantity - self.filled_quantity

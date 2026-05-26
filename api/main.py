@@ -44,7 +44,7 @@ from api.websocket.schemas import (
     TickerMessage,
     TradeMessage,
 )
-from engine.core.matching_engine import MatchingEngine
+from engine.hal.software import SoftwareMatchingHAL
 from engine.market_data.publisher import MarketDataPublisher
 from infra.config.settings import settings
 from infra.db.database import engine as database_engine
@@ -204,7 +204,7 @@ async def latency_push_loop(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle hook (replaces deprecated @on_event)."""
-    engine: MatchingEngine = app.state.engine
+    engine: SoftwareMatchingHAL = app.state.engine
     event_bus: EventBus = app.state.event_bus
     ws_manager: ConnectionManager = app.state.ws_manager
     persistence_writer: AsyncDatabaseWriter | None = app.state.persistence_writer
@@ -265,7 +265,8 @@ def create_app() -> FastAPI:
     )
 
     # ── State (singletons) ────────────────────────────────────────────────────
-    app.state.engine = MatchingEngine()
+    # ── Matching backend — swap for CppMatchingHAL / FPGAMatchingHAL (M7/M8) ──
+    app.state.engine = SoftwareMatchingHAL()
     app.state.event_bus = EventBus(queue_depth=settings.event_queue_depth)
     app.state.ws_manager = ConnectionManager()
     app.state.order_service = OrderService(app.state.engine, app.state.event_bus)
@@ -315,9 +316,12 @@ def create_app() -> FastAPI:
             or current.persistence_failed_batches > 0
             or current.strategy_callback_failures > 0
         )
+        hal: SoftwareMatchingHAL = app.state.engine
         return {
             "status": "degraded" if degraded else "ok",
             "version": settings.api_version,
+            "matching_backend": hal.backend_name,
+            "symbols": hal.registered_symbols,
             "timestamp_ns": time.time_ns(),
         }
 

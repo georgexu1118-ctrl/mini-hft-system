@@ -17,7 +17,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from engine.core.matching_engine import EngineEvent, MatchingEngine
+from engine.core.matching_engine import EngineEvent
+from engine.hal.abstract import MatchingHAL
 from engine.core.order import Order
 from engine.core.order_book import MatchResult
 from engine.core.types import EventType, OrderId
@@ -41,7 +42,7 @@ class OrderService:
     per process, shared across all request handlers via DI.
     """
 
-    def __init__(self, engine: MatchingEngine, event_bus: EventBus) -> None:
+    def __init__(self, engine: MatchingHAL, event_bus: EventBus) -> None:
         self._engine = engine
         self._event_bus = event_bus
         # Wire the engine callback so we receive events synchronously

@@ -14,7 +14,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 
-from engine.core.matching_engine import MatchingEngine
+from engine.hal.abstract import MatchingHAL
 from engine.core.types import EventType
 from infra.db.writer import AsyncDatabaseWriter
 from shared.events import (
@@ -91,7 +91,7 @@ class MetricsSnapshot:
 class MetricsService:
     def __init__(
         self,
-        engine: MatchingEngine,
+        engine: MatchingHAL,
         event_bus: EventBus,
         persistence_writer: AsyncDatabaseWriter | None = None,
         strategy_runtime: StrategyRuntime | None = None,
