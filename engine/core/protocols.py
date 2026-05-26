@@ -6,8 +6,8 @@ Why Protocol instead of ABC?
 `typing.Protocol` uses structural subtyping (duck typing): a class satisfies
 the protocol without explicitly inheriting from it. This matters because:
 
-1. The C++ extension (`ctypes` wrapper) can't inherit from Python ABCs —
-   it exposes methods, not inheritance trees.
+1. Native bindings are adapted behind Python HALs rather than exposed
+   directly to service-layer dependencies.
 2. The FPGA HAL will be a thin Python shim over a shared-memory interface.
    It has no natural base class.
 3. Protocol lets us type-check without coupling the implementation to the
@@ -20,11 +20,12 @@ IMPORTANT: These protocols define the contract the HAL must satisfy.
            The service layer imports these, not concrete implementations.
 """
 from __future__ import annotations
-from typing import Protocol, runtime_checkable, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from engine.core.order import Order, Trade
-    from engine.core.order_book import MatchResult, BookSnapshot
+    from engine.core.order import Order
+    from engine.core.order_book import BookSnapshot, MatchResult
     from engine.core.types import OrderId, Symbol
     from engine.risk.limits import RiskCheckResult
 
@@ -37,7 +38,7 @@ class MatchingBackend(Protocol):
     Implementations:
     ─────────────────
     SoftwareMatchingHAL  (current)  Python CLOB, ~350 µs/order
-    CppMatchingHAL       (M7)       C extension via ctypes/pybind11, ~1 µs
+    CppMatchingHAL       (M7)       C++ extension via binary pybind11 boundary
     FPGAMatchingHAL      (M8)       PCIe DMA shim, ~200 ns
 
     All implementations are drop-in replacements. The service layer

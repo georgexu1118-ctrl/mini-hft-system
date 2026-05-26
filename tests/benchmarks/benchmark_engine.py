@@ -1,39 +1,39 @@
 """
-Matching engine benchmark suite.
+Comparable HAL-level latency benchmark for the Python and C++ engines.
 
-Measures hot-path latency for the Python CLOB engine. These numbers establish
-the baseline that C++ (M7) and FPGA (M8) implementations must improve on.
-
-Usage:
-    python tests/benchmarks/benchmark_engine.py
-    python tests/benchmarks/benchmark_engine.py --rounds 5000
-
-Expected results (developer laptop, Python 3.11):
-  Resting order (no fill):    p50 ~300 µs,  p99 ~500 µs,  p999 ~1 ms
-  1-fill match:               p50 ~600 µs,  p99 ~900 µs,  p999 ~2 ms
-  Sweep (10 levels, 10 fills):p50 ~1.5 ms,  p99 ~3 ms
-
-  Throughput (resting):       ~3,000–5,000 orders/sec
-
-  Root cause: Python object allocation in MatchResult/Trade + GC pressure.
-  C++ arena allocator + pre-allocated Trade pool would reach ~1 µs p99.
+The object scenarios time `MatchingHAL.submit_order(Order)`: this intentionally
+includes native frame conversion and domain-result hydration because it is the
+latency experienced by the current service layer. The `frame_*` scenarios time
+pre-encoded binary submission and result framing, exposing the replaceable
+transport boundary without Python trade/snapshot projection. Order construction
+and book seeding are outside every timer. Results, not assumptions, should
+justify later node-pool or binary-service optimizations.
 """
 from __future__ import annotations
 
 import argparse
-import statistics
+import sys
 import time
-from typing import NamedTuple
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
 
-from engine.core.matching_engine import MatchingEngine
-from engine.core.order import Order
-from engine.core.types import OrderSide, OrderType, TimeInForce
+# Keep the documented direct-script invocation usable from the repository root.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from engine.core.order import Order  # noqa: E402
+from engine.core.types import OrderSide, OrderType  # noqa: E402
+from engine.hal.abstract import MatchingHAL  # noqa: E402
+from engine.hal.cpp_hal import CppMatchingHAL, is_available  # noqa: E402
+from engine.hal.software import SoftwareMatchingHAL  # noqa: E402
+
+Factory = Callable[[], MatchingHAL]
 
 
-# ── Scenarios ─────────────────────────────────────────────────────────────────
-
-class BenchResult(NamedTuple):
-    name: str
+@dataclass(frozen=True, slots=True)
+class BenchResult:
+    backend: str
+    scenario: str
     rounds: int
     p50_us: float
     p99_us: float
@@ -41,167 +41,147 @@ class BenchResult(NamedTuple):
     throughput_ops: float
 
 
-def _make_order(
+def _order(
     side: OrderSide,
-    price: float,
-    qty: int = 100,
-    otype: OrderType = OrderType.LIMIT,
-    tif: TimeInForce = TimeInForce.GTC,
+    price: float | None,
+    quantity: int = 100,
+    order_type: OrderType = OrderType.LIMIT,
 ) -> Order:
     return Order(
         symbol="BENCH",
         side=side,
-        order_type=otype,
-        quantity=qty,
+        order_type=order_type,
+        quantity=quantity,
         price=price,
-        time_in_force=tif,
     )
 
 
-def bench_resting_orders(rounds: int) -> BenchResult:
-    """
-    Resting limit orders: no match, just insert into the book.
-    Isolates PriceLevel.add() + SortedDict insertion cost.
-    """
-    engine = MatchingEngine()
+def _engine(factory: Factory) -> MatchingHAL:
+    engine = factory()
     engine.register_symbol("BENCH")
+    return engine
 
-    latencies: list[float] = []
-    price = 100.0
+
+def _result(backend: str, scenario: str, samples_ns: list[int]) -> BenchResult:
+    values = sorted(value / 1_000 for value in samples_ns)
+    rounds = len(values)
+    elapsed_s = sum(samples_ns) / 1_000_000_000
+
+    def percentile(ratio: float) -> float:
+        return values[min(int(rounds * ratio), rounds - 1)]
+
+    return BenchResult(
+        backend=backend,
+        scenario=scenario,
+        rounds=rounds,
+        p50_us=percentile(0.50),
+        p99_us=percentile(0.99),
+        p999_us=percentile(0.999),
+        throughput_ops=rounds / elapsed_s,
+    )
+
+
+def bench_resting(
+    backend: str, factory: Factory, rounds: int, *, frames: bool = False
+) -> BenchResult:
+    engine = _engine(factory)
+    orders = [_order(OrderSide.BUY, 100.0 - index * 0.001) for index in range(rounds)]
+    encoded = [order.to_bytes() for order in orders] if frames else []
+    samples: list[int] = []
+    for index, order in enumerate(orders):
+        start = time.perf_counter_ns()
+        if frames:
+            engine.submit_order_bytes(encoded[index])
+        else:
+            engine.submit_order(order)
+        samples.append(time.perf_counter_ns() - start)
+    scenario = "frame_resting" if frames else "resting_no_fill"
+    return _result(backend, scenario, samples)
+
+
+def bench_single_fill(
+    backend: str, factory: Factory, rounds: int, *, frames: bool = False
+) -> BenchResult:
+    samples: list[int] = []
     for _ in range(rounds):
-        order = _make_order(OrderSide.BUY, price)
-        price -= 0.01  # unique prices → new PriceLevel each time
-        t0 = time.perf_counter_ns()
-        engine.submit_order(order)
-        t1 = time.perf_counter_ns()
-        latencies.append((t1 - t0) / 1_000)  # ns → µs
+        engine = _engine(factory)
+        engine.submit_order(_order(OrderSide.BUY, 150.0))
+        taker = _order(OrderSide.SELL, 150.0)
+        encoded = taker.to_bytes() if frames else b""
+        start = time.perf_counter_ns()
+        if frames:
+            engine.submit_order_bytes(encoded)
+        else:
+            engine.submit_order(taker)
+        samples.append(time.perf_counter_ns() - start)
+    scenario = "frame_single_fill" if frames else "single_fill"
+    return _result(backend, scenario, samples)
 
-    return _stats("resting_no_fill", rounds, latencies)
 
-
-def bench_single_fill(rounds: int) -> BenchResult:
-    """
-    Submit buy at X, then sell at X → 1-fill match.
-    Measures full match loop: cross check + Trade allocation + status update.
-    """
-    latencies: list[float] = []
+def bench_sweep(
+    backend: str, factory: Factory, rounds: int, depth: int, *, frames: bool = False
+) -> BenchResult:
+    samples: list[int] = []
     for _ in range(rounds):
-        engine = MatchingEngine()
-        engine.register_symbol("BENCH")
-        # Pre-place a resting buy
-        buy = _make_order(OrderSide.BUY, 150.0)
-        engine.submit_order(buy)
-
-        # Now time the crossing sell
-        sell = _make_order(OrderSide.SELL, 150.0)
-        t0 = time.perf_counter_ns()
-        engine.submit_order(sell)
-        t1 = time.perf_counter_ns()
-        latencies.append((t1 - t0) / 1_000)
-
-    return _stats("single_fill", rounds, latencies)
-
-
-def bench_market_sweep(rounds: int, depth: int = 10) -> BenchResult:
-    """
-    Market order sweeping N price levels.
-    Tests the inner matching loop over multiple PriceLevels.
-    """
-    latencies: list[float] = []
-    for _ in range(rounds):
-        engine = MatchingEngine()
-        engine.register_symbol("BENCH")
-        # Place resting sells at 10 distinct prices
-        for i in range(depth):
-            engine.submit_order(_make_order(OrderSide.SELL, 100.0 + i * 0.01, qty=10))
-
-        # Market buy sweeps all of them
-        mkt = _make_order(OrderSide.BUY, None, qty=depth * 10, otype=OrderType.MARKET)  # type: ignore[arg-type]
-        t0 = time.perf_counter_ns()
-        engine.submit_order(mkt)
-        t1 = time.perf_counter_ns()
-        latencies.append((t1 - t0) / 1_000)
-
-    return _stats(f"market_sweep_{depth}_levels", rounds, latencies)
+        engine = _engine(factory)
+        for level in range(depth):
+            engine.submit_order(_order(OrderSide.SELL, 100.0 + level * 0.01, 10))
+        taker = _order(OrderSide.BUY, None, depth * 10, OrderType.MARKET)
+        encoded = taker.to_bytes() if frames else b""
+        start = time.perf_counter_ns()
+        if frames:
+            engine.submit_order_bytes(encoded)
+        else:
+            engine.submit_order(taker)
+        samples.append(time.perf_counter_ns() - start)
+    scenario = f"frame_sweep_{depth}" if frames else f"market_sweep_{depth}"
+    return _result(backend, scenario, samples)
 
 
-def bench_throughput(rounds: int) -> float:
-    """Orders per second (resting, pre-allocated engines per batch)."""
-    engine = MatchingEngine()
-    engine.register_symbol("BENCH")
-    orders = [_make_order(OrderSide.BUY, 100.0 - i * 0.001) for i in range(rounds)]
-
-    t0 = time.perf_counter_ns()
-    for o in orders:
-        engine.submit_order(o)
-    elapsed_s = (time.perf_counter_ns() - t0) / 1e9
-
-    return rounds / elapsed_s
+def run_backend(backend: str, factory: Factory, rounds: int) -> list[BenchResult]:
+    return [
+        bench_resting(backend, factory, rounds),
+        bench_single_fill(backend, factory, rounds),
+        bench_sweep(backend, factory, rounds, 10),
+        bench_resting(backend, factory, rounds, frames=True),
+        bench_single_fill(backend, factory, rounds, frames=True),
+        bench_sweep(backend, factory, rounds, 10, frames=True),
+    ]
 
 
-def _stats(name: str, rounds: int, latencies: list[float]) -> BenchResult:
-    s = sorted(latencies)
-    n = len(s)
-    p50  = s[int(n * 0.50)]
-    p99  = s[int(n * 0.99)]
-    p999 = s[min(int(n * 0.999), n - 1)]
-    tput = rounds / (sum(latencies) / 1e6)  # µs total → seconds
-    return BenchResult(name, rounds, p50, p99, p999, tput)
+def report(results: list[BenchResult]) -> None:
+    print("backend  scenario              p50_us    p99_us   p999_us    throughput")
+    print("-------  --------------------  --------  --------  --------  ------------")
+    for value in results:
+        print(
+            f"{value.backend:7s}  {value.scenario:20s}  "
+            f"{value.p50_us:8.2f}  {value.p99_us:8.2f}  {value.p999_us:8.2f}  "
+            f"{value.throughput_ops:12,.0f}"
+        )
 
-
-# ── Reporter ──────────────────────────────────────────────────────────────────
-
-def _bar(value: float, ref: float, width: int = 20) -> str:
-    filled = min(int((value / ref) * width), width)
-    return "█" * filled + "░" * (width - filled)
-
-
-def report(result: BenchResult) -> None:
-    print(f"\n{'─' * 60}")
-    print(f"  {result.name:40s}  n={result.rounds}")
-    print(f"{'─' * 60}")
-    print(f"  p50   {result.p50_us:8.1f} µs  {_bar(result.p50_us, result.p999_us)}")
-    print(f"  p99   {result.p99_us:8.1f} µs  {_bar(result.p99_us,  result.p999_us)}")
-    print(f"  p999  {result.p999_us:8.1f} µs  {_bar(result.p999_us, result.p999_us)}")
-    print(f"  tput  {result.throughput_ops:8,.0f} ops/sec")
-
-
-# ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Matching engine benchmark")
-    parser.add_argument("--rounds", type=int, default=2_000, help="Iterations per scenario")
-    parser.add_argument("--warmup", type=int, default=100, help="Warmup iterations (discarded)")
+    parser = argparse.ArgumentParser(description="Python/C++ MatchingHAL benchmark")
+    parser.add_argument("--rounds", type=int, default=2_000)
+    parser.add_argument("--warmup", type=int, default=100)
+    parser.add_argument("--backend", choices=("both", "python", "cpp"), default="both")
     args = parser.parse_args()
 
-    print("\n╔══════════════════════════════════════════════════════════╗")
-    print("║          Mini HFT — Matching Engine Benchmark            ║")
-    print("║  Python baseline. C++ (M7) target: 10-100× improvement  ║")
-    print("╚══════════════════════════════════════════════════════════╝")
+    factories: list[tuple[str, Factory]] = []
+    if args.backend in ("both", "python"):
+        factories.append(("python", SoftwareMatchingHAL))
+    if args.backend in ("both", "cpp"):
+        if not is_available():
+            raise SystemExit("C++ backend requested but hft_engine_cpp is not built")
+        factories.append(("cpp", CppMatchingHAL))
 
-    # Warmup: load Python bytecache, fill JIT tiers
-    print(f"\nWarming up ({args.warmup} rounds)…", end="", flush=True)
-    bench_resting_orders(args.warmup)
-    bench_single_fill(args.warmup)
-    print(" done")
+    for backend, factory in factories:
+        run_backend(backend, factory, args.warmup)
 
-    print(f"\nRunning {args.rounds:,} rounds each…")
-    results = [
-        bench_resting_orders(args.rounds),
-        bench_single_fill(args.rounds),
-        bench_market_sweep(args.rounds, depth=5),
-        bench_market_sweep(args.rounds, depth=10),
-    ]
-    for r in results:
-        report(r)
-
-    tput = bench_throughput(args.rounds * 2)
-    print(f"\n{'─' * 60}")
-    print(f"  Throughput (resting, pre-allocated):  {tput:,.0f} orders/sec")
-    print(f"  Target (Python ceiling):              ~5,000 orders/sec")
-    print(f"  Target C++ (M7):                      ~500,000 orders/sec")
-    print(f"  Target FPGA (M8):                     ~5,000,000 orders/sec")
-    print(f"{'─' * 60}\n")
+    results: list[BenchResult] = []
+    for backend, factory in factories:
+        results.extend(run_backend(backend, factory, args.rounds))
+    report(results)
 
 
 if __name__ == "__main__":

@@ -44,6 +44,8 @@ from api.websocket.schemas import (
     TickerMessage,
     TradeMessage,
 )
+from engine.hal.abstract import MatchingHAL
+from engine.hal.cpp_hal import CppMatchingHAL
 from engine.hal.software import SoftwareMatchingHAL
 from engine.market_data.publisher import MarketDataPublisher
 from infra.config.settings import settings
@@ -201,10 +203,26 @@ async def latency_push_loop(
 
 # ── Application factory ───────────────────────────────────────────────────────
 
+def _build_matching_hal() -> MatchingHAL:
+    """
+    Compose the configured synchronous matching backend behind the HAL.
+
+    Routes and services must remain independent of whether execution is
+    performed in Python or C++. Missing requested native code fails startup
+    instead of silently changing production latency characteristics.
+    """
+    backend = settings.matching_backend.strip().lower()
+    if backend == "python":
+        return SoftwareMatchingHAL()
+    if backend == "cpp":
+        return CppMatchingHAL()
+    raise ValueError(f"Unsupported MATCHING_BACKEND={settings.matching_backend!r}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle hook (replaces deprecated @on_event)."""
-    engine: SoftwareMatchingHAL = app.state.engine
+    engine: MatchingHAL = app.state.engine
     event_bus: EventBus = app.state.event_bus
     ws_manager: ConnectionManager = app.state.ws_manager
     persistence_writer: AsyncDatabaseWriter | None = app.state.persistence_writer
@@ -266,7 +284,7 @@ def create_app() -> FastAPI:
 
     # ── State (singletons) ────────────────────────────────────────────────────
     # ── Matching backend — swap for CppMatchingHAL / FPGAMatchingHAL (M7/M8) ──
-    app.state.engine = SoftwareMatchingHAL()
+    app.state.engine = _build_matching_hal()
     app.state.event_bus = EventBus(queue_depth=settings.event_queue_depth)
     app.state.ws_manager = ConnectionManager()
     app.state.order_service = OrderService(app.state.engine, app.state.event_bus)
@@ -316,7 +334,7 @@ def create_app() -> FastAPI:
             or current.persistence_failed_batches > 0
             or current.strategy_callback_failures > 0
         )
-        hal: SoftwareMatchingHAL = app.state.engine
+        hal: MatchingHAL = app.state.engine
         return {
             "status": "degraded" if degraded else "ok",
             "version": settings.api_version,

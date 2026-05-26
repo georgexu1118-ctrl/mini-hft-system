@@ -95,6 +95,46 @@ The backend now provides dashboard-ready DTOs without adding UI complexity. A so
 
 JSON/Pydantic serialization remains in the API fan-out layer, never in matching. JSON favors browser interoperability; a higher-throughput market-data gateway could replace that layer with a compact binary codec. The dashboard projection also exposes a bounded trade tape, one-second rolling latency (`p50`, `p99`, `p999`), strategy/PnL frames, and system-health frames reporting persistence or strategy degradation.
 
+### 2c. Native Matching HAL (M7)
+
+`CppMatchingHAL` is now a working backend selected at application composition time with `MATCHING_BACKEND=cpp`. `OrderService`, strategy execution, persistence, market-data DTOs, and WebSocket projection continue to depend only on `MatchingHAL`; the C++ engine never enters an API route or async task directly.
+
+The native engine implements price-time-priority matching with intrusive FIFO price levels and O(log P) cancellation using stable order-node pointers. The M7 ownership facade currently retains one native node allocation per admitted order. This is intentional: semantic parity and an honest benchmark precede a more complex slab allocator.
+
+The 64-byte `ORDER_FRAME` is a transport ABI, not a native-memory alias. Python encodes numeric fields in big-endian/network order and the C++ binding explicitly decodes them into host-endian state. Match and snapshot frames are encoded explicitly on return. This preserves the same inspectable boundary for a later shared-memory or DMA transport while avoiding unsafe struct reinterpretation on little-endian CPUs. Symbols in this ABI are limited to six ASCII bytes.
+
+The benchmark reports both service-level `submit_order(Order)` timings (including native frame conversion and domain-result hydration) and `frame_*` timings through the pre-encoded binary transport boundary:
+
+```bash
+python -m pip install ".[cpp]"
+# Windows (initializes Visual C++ Build Tools):
+engine\cpp\build_windows.bat
+# POSIX or an initialized compiler shell:
+python engine/cpp/setup.py build_ext --inplace
+python tests/benchmarks/benchmark_engine.py --backend both --rounds 5000
+```
+
+It reports `p50`, `p99`, `p999`, and throughput for resting inserts, single fills, and ten-level sweeps. The two views separate service projection overhead from transport/native matching cost, providing evidence for any later allocation or binary-service optimization.
+
+Representative Windows/MSVC run on May 26, 2026 (`5,000` rounds per scenario):
+
+| Path / backend | Scenario | p50 us | p99 us | p999 us | ops/sec |
+|---|---:|---:|---:|---:|---:|
+| Object / Python | Resting | 231.3 | 656.6 | 4,450.3 | 3,492 |
+| Object / C++ | Resting | 19.2 | 35.7 | 73.0 | 49,870 |
+| Frame / Python | Resting | 323.6 | 1,135.1 | 8,362.7 | 2,416 |
+| Frame / C++ | Resting | 1.6 | 5.7 | 26.3 | 542,788 |
+| Object / Python | Single fill | 9.2 | 12.2 | 23.1 | 107,345 |
+| Object / C++ | Single fill | 31.9 | 57.2 | 96.1 | 30,141 |
+| Object / Python | Ten-level sweep | 44.3 | 54.4 | 86.6 | 22,322 |
+| Object / C++ | Ten-level sweep | 161.2 | 287.1 | 366.1 | 5,991 |
+| Frame / Python | Single fill | 23.6 | 41.6 | 74.8 | 40,925 |
+| Frame / C++ | Single fill | 1.5 | 6.5 | 25.4 | 583,512 |
+| Frame / Python | Ten-level sweep | 101.0 | 185.7 | 244.9 | 9,370 |
+| Frame / C++ | Ten-level sweep | 3.2 | 8.1 | 13.7 | 282,892 |
+
+The native frame path is substantially faster. The object-level fill path is presently dominated by constructing Python `Trade` objects and snapshots after native execution; moving a service flow to binary projections should be justified separately rather than hidden inside this milestone.
+
 ### 3. Pure Computation Boundary
 
 `engine/` has zero dependency on FastAPI, SQLAlchemy, or asyncio. Its interface is:
@@ -105,7 +145,7 @@ engine.cancel_order(order_id: str) → Order | None
 engine.get_snapshot(symbol: str)   → BookSnapshot | None
 ```
 
-This boundary means the engine can be replaced with a C extension (`ctypes`), a subprocess communicating via shared memory, or an FPGA driver — without touching any API code.
+This boundary now supports the Python engine or compiled C++ pybind11 backend without changing service/API code, and remains suitable for a future shared-memory process or FPGA gateway.
 
 ### 4. Price-Time Priority (FIFO)
 
@@ -258,6 +298,13 @@ mini-hft-system/
 │   ├── market_data/
 │   │   ├── feed.py             # GBM price generator
 │   │   └── publisher.py        # Async background task: tick → TickerEvent
+│   ├── hal/
+│   │   ├── abstract.py         # Replaceable synchronous matching contract
+│   │   ├── software.py         # Python MatchingEngine adapter
+│   │   └── cpp_hal.py          # Binary-frame native backend adapter
+│   ├── cpp/
+│   │   ├── include/            # Native CLOB facade and wire codec
+│   │   └── src/                # C++20 matching core and pybind11 binding
 │   └── risk/
 │       └── limits.py           # Pre-trade risk checks
 │
@@ -425,7 +472,7 @@ Connect to `ws://localhost:8000/api/v1/market-data/ws`
 | **M4** | PostgreSQL persistence (async writer) | Done |
 | **M5** | Strategy sandbox + executor | Done |
 | **M6** | Next.js dashboard — order book, latency chart, strategy UI | Done |
-| **M7** | C++ CLOB engine scaffold — headers, order_book.cpp, pybind11 binding | Done (scaffold) |
+| **M7** | C++ CLOB engine, pybind11 binary HAL, parity tests and benchmarks | Done |
 | **M8** | FPGA HAL scaffold — PCIe DMA ring architecture, XRT integration | Done (scaffold) |
 
 ---
@@ -434,19 +481,9 @@ Connect to `ws://localhost:8000/api/v1/market-data/ws`
 
 The `engine/` boundary is designed for this upgrade:
 
-**C++ step (M7):**
-```python
-# Replace engine/core/matching_engine.py with:
-import ctypes
-lib = ctypes.CDLL("./engine_core.so")
+**C++ step (M7, implemented):**
 
-class MatchingEngine:
-    def submit_order(self, order: Order) -> MatchResult:
-        # Marshal to C struct, call lib.submit_order(), unmarshal result
-        ...
-```
-
-The API layer doesn't change at all — it still calls `engine.submit_order(order)`.
+`engine/cpp/` builds `hft_engine_cpp`, and `CppMatchingHAL` adapts its binary-frame surface to the same `submit_order(Order) -> MatchResult` contract used by `SoftwareMatchingHAL`. Start the API with `MATCHING_BACKEND=cpp` after building the extension. Parity tests compare Python and native fill/cancel/depth semantics.
 
 **FPGA step (M8):**
 The FPGA replaces the matching loop. The CPU handles everything else (risk, persistence, WS). Communication via shared memory (DPDK, RDMA) or PCIe DMA.
@@ -477,5 +514,5 @@ Key FPGA concepts to explore:
 
 Built as a learning project. PRs welcome for:
 - Additional order types (Stop, Stop-Limit, Iceberg)
-- C++ pybind11 binding completion — compile hft_engine_cpp.so (M7)
+- Native allocator experiments justified by the M7 benchmark distributions
 - FPGA hardware bring-up — XRT driver + bitstream deployment (M8)

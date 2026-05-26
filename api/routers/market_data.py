@@ -23,7 +23,7 @@ from api.services.book_stream_service import BookDeltaProjector
 from api.services.trade_tape_service import TradeTapeService
 from api.websocket.manager import ConnectionManager
 from api.websocket.schemas import ErrorMessage
-from engine.core.matching_engine import MatchingEngine
+from engine.hal.abstract import MatchingHAL
 
 router = APIRouter()
 
@@ -31,7 +31,7 @@ router = APIRouter()
 # ── REST ─────────────────────────────────────────────────────────────────────
 
 @router.get("/symbols", summary="List all registered symbols")
-async def list_symbols(engine: MatchingEngine = Depends(get_engine)) -> dict:
+async def list_symbols(engine: MatchingHAL = Depends(get_engine)) -> dict:
     return {"symbols": engine.registered_symbols}
 
 
@@ -39,7 +39,7 @@ async def list_symbols(engine: MatchingEngine = Depends(get_engine)) -> dict:
 async def get_snapshot(
     symbol: str,
     depth: int = 10,
-    engine: MatchingEngine = Depends(get_engine),
+    engine: MatchingHAL = Depends(get_engine),
 ) -> BookSnapshotDTO:
     """
     Returns the current state of the order book for `symbol` up to `depth`
@@ -73,7 +73,7 @@ async def recent_trades(
 async def websocket_endpoint(
     ws: WebSocket,
     ws_manager: ConnectionManager = Depends(get_ws_manager),
-    engine: MatchingEngine = Depends(get_engine),
+    engine: MatchingHAL = Depends(get_engine),
 ) -> None:
     """
     Real-time market data stream.

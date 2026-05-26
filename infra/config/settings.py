@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     persistence_retry_backoff_ms: int = 20
 
     # ── Engine ───────────────────────────────────────────────────────────────
+    matching_backend: str = "python"
     event_queue_depth: int = 10_000
 
     # ── Market Data ──────────────────────────────────────────────────────────

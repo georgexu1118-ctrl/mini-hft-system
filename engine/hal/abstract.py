@@ -8,7 +8,7 @@ Software path:
   OrderService → SoftwareMatchingHAL → MatchingEngine (Python CLOB)
 
 C++ path (M7):
-  OrderService → CppMatchingHAL → ctypes wrapper → compiled .so
+  OrderService -> CppMatchingHAL -> binary pybind11 boundary -> native CLOB
 
 FPGA path (M8):
   OrderService → FPGAMatchingHAL → DMA ring write → poll completion ring
@@ -27,12 +27,13 @@ adds a new HAL method and forgets to implement it in a subclass.
 `MatchingHAL` (this file) uses ABC for our own implementations.
 """
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import Callable, Optional
 
-from engine.core.order import Order
-from engine.core.order_book import MatchResult, BookSnapshot
 from engine.core.matching_engine import EngineEvent
+from engine.core.order import Order
+from engine.core.order_book import BookSnapshot, MatchResult
 from engine.core.types import OrderId, Symbol
 
 # Type alias for the event callback installed by OrderService
@@ -122,7 +123,7 @@ class MatchingHAL(ABC):
           Default (Python objects):  same as submit_order  (~350 µs)
           FPGA override:             DMA write + poll       (~200 ns)
         """
-        from engine.core.binary_protocol import OrderCodec, MatchResultCodec
+        from engine.core.binary_protocol import MatchResultCodec, OrderCodec
         order = OrderCodec.decode(frame)
         result = self.submit_order(order)
         return MatchResultCodec.encode(result)
