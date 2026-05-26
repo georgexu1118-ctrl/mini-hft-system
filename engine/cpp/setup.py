@@ -5,8 +5,8 @@ Usage:
     pip install pybind11 setuptools
     python engine/cpp/setup.py build_ext --inplace
 
-The resulting extension (hft_engine_cpp.so / .pyd) is placed in
-engine/hal/cpp/ and imported by CppMatchingHAL.
+The resulting in-place extension (hft_engine_cpp.so / .pyd) is placed at the
+repository import root and imported by CppMatchingHAL.
 
 Requirements:
     - C++20 compiler (GCC 10+, Clang 12+, MSVC 2019+)
@@ -17,12 +17,11 @@ For AWS EC2 (g4dn / F1 instances) targeting M8:
     - Install GCC 12 + libhugetlbfs for hugepage DMA ring support
     - Add -DHFT_HUGEPAGE_RING=1 to extra_compile_args
 """
-import os
 import sys
 from pathlib import Path
 
 try:
-    from pybind11 import get_cmake_dir, get_include
+    from pybind11 import get_include
     from setuptools import Extension, setup
 except ImportError:
     print("ERROR: pybind11 and setuptools required. Run: pip install pybind11 setuptools", file=sys.stderr)
@@ -32,21 +31,20 @@ HERE = Path(__file__).parent
 
 ext = Extension(
     name="hft_engine_cpp",
-    sources=[str(HERE / "src" / "order_book.cpp")],
+    sources=[
+        str(HERE / "src" / "bindings.cpp"),
+        str(HERE / "src" / "matching_engine.cpp"),
+        str(HERE / "src" / "order_book.cpp"),
+    ],
     include_dirs=[
         str(HERE / "include"),
         get_include(),
     ],
-    extra_compile_args=[
-        "-std=c++20",
-        "-O3",
-        "-march=native",
-        "-fvisibility=hidden",
-        "-Wall",
-        "-Wextra",
-        # Suppress noisy pybind11 warnings
-        "-Wno-unused-parameter",
-    ],
+    extra_compile_args=(
+        ["/std:c++20", "/O2", "/EHsc", "/W4"]
+        if sys.platform == "win32"
+        else ["-std=c++20", "-O3", "-march=native", "-fvisibility=hidden", "-Wall", "-Wextra"]
+    ),
     language="c++",
 )
 

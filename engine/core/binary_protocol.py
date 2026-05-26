@@ -89,12 +89,16 @@ to know when a new result frame is ready.
   read TRADE_FRAME from result_ring
 """
 from __future__ import annotations
+
 import struct
 import uuid
-from typing import Optional
+from typing import TYPE_CHECKING
 
-from engine.core.types import OrderSide, OrderType, TimeInForce, OrderStatus
 from engine.core.order import Order, Trade
+from engine.core.types import OrderSide, OrderStatus, OrderType, TimeInForce
+
+if TYPE_CHECKING:
+    from engine.core.order_book import BookSnapshot, MatchResult
 
 
 # ── Enum → wire byte mappings ─────────────────────────────────────────────────
@@ -329,7 +333,6 @@ class BookSnapshotCodec:
 
     @staticmethod
     def encode(snapshot: "BookSnapshot") -> bytes:
-        from engine.core.order_book import BookSnapshot
         bid_count = len(snapshot.bids)
         ask_count = len(snapshot.asks)
 
@@ -347,6 +350,36 @@ class BookSnapshotCodec:
             levels += BOOK_LEVEL_FRAME.pack(price, qty, cnt)
 
         return bytes(header) + bytes(levels)
+
+    @staticmethod
+    def decode(data: bytes | bytearray) -> "BookSnapshot":
+        """Reconstruct a depth snapshot supplied by a native/DMA backend."""
+        from engine.core.order_book import BookSnapshot
+
+        raw_symbol, bid_count, ask_count, sequence, timestamp_ns = SNAPSHOT_HEADER.unpack_from(
+            data, 0
+        )
+        expected_size = BookSnapshotCodec.frame_size(bid_count, ask_count)
+        if len(data) < expected_size:
+            raise ValueError("snapshot frame is shorter than its level counts")
+
+        offset = SNAPSHOT_HEADER.size
+        bids: list[tuple[float, int, int]] = []
+        asks: list[tuple[float, int, int]] = []
+        for _ in range(bid_count):
+            bids.append(BookLevelCodec.decode(data, offset))
+            offset += BOOK_LEVEL_FRAME.size
+        for _ in range(ask_count):
+            asks.append(BookLevelCodec.decode(data, offset))
+            offset += BOOK_LEVEL_FRAME.size
+
+        return BookSnapshot(
+            symbol=_decode_symbol(raw_symbol),
+            sequence=sequence,
+            bids=bids,
+            asks=asks,
+            timestamp_ns=timestamp_ns,
+        )
 
     @staticmethod
     def frame_size(bid_count: int, ask_count: int) -> int:
@@ -371,7 +404,6 @@ class MatchResultCodec:
 
     @classmethod
     def encode(cls, result: "MatchResult") -> bytes:
-        from engine.core.order_book import MatchResult
         order = result.order
         header = cls.HEADER.pack(
             len(result.trades),

@@ -13,6 +13,8 @@
 #include <cassert>
 #include <cstdio>
 #include <cstring>
+#include <stdexcept>
+#include <vector>
 
 using namespace hft;
 
@@ -158,16 +160,18 @@ TEST(test_market_order_sweeps_book) {
 
 TEST(test_snapshot_depth_limited) {
     OrderBook book("AAPL");
+    std::vector<OrderNode*> orders;
     for (int i = 0; i < 5; ++i) {
         auto* o = make_order(Side::BUY, 100.0 - i);
+        orders.push_back(o);
         book.submit(o);
-        delete o;
     }
     auto snap = book.snapshot(3);
     ASSERT(snap.bids.size() == 3);
     ASSERT(snap.bids[0].price == 100.0);  // best bid first
     ASSERT(snap.bids[1].price == 99.0);
     ASSERT(snap.bids[2].price == 98.0);
+    for (auto* order : orders) delete order;
 }
 
 TEST(test_price_time_priority) {

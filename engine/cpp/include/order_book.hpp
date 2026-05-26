@@ -40,6 +40,8 @@ namespace hft {
 // ── Trade record returned from matching ───────────────────────────────────────
 
 struct MatchTrade {
+    uint64_t sequence;
+    uint64_t timestamp_ns;
     double   price;
     uint32_t quantity;
     Side     aggressor_side;
@@ -110,7 +112,7 @@ public:
      * @param node  Pre-allocated OrderNode (fields filled by caller).
      * @return      MatchResult with trade list and final order status.
      */
-    MatchResult submit(OrderNode* node) noexcept;
+    MatchResult submit(OrderNode* node);
 
     /**
      * Cancel a resting order. Returns the cancelled node or nullptr.
@@ -121,7 +123,7 @@ public:
     /**
      * Depth-limited snapshot. O(depth).
      */
-    BookSnapshot snapshot(int depth = 10) const noexcept;
+    BookSnapshot snapshot(int depth = 10) const;
 
     uint64_t sequence() const noexcept { return sequence_; }
 
@@ -129,11 +131,14 @@ public:
     double best_ask() const noexcept;
 
 private:
+    template <typename OppositeBook>
+    void match_against(OrderNode* node, OppositeBook& opposite, MatchResult& result);
     bool crosses(Side incoming_side, double incoming_price, double level_price) const noexcept;
-    void rest_order(OrderNode* node) noexcept;
+    void rest_order(OrderNode* node);
 
     char     symbol_[6];
     uint64_t sequence_ = 0;
+    uint64_t trade_sequence_ = 0;
 
     // Bids: descending order (highest first)
     std::map<double, PriceLevel, std::greater<double>> bids_;

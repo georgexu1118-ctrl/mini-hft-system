@@ -3,22 +3,25 @@
  *
  * Fixed-size, cache-line-aligned order representation for the C++ engine.
  *
- * Layout mirrors the Python binary_protocol.py ORDER_FRAME exactly so that
- * orders can be passed from Python → C++ as raw bytes without re-encoding.
+ * This is the native host representation, not a reinterpret-cast view of the
+ * wire frame. Python's ORDER_FRAME is explicitly big-endian while commodity
+ * C++ hosts are normally little-endian. wire_codec.hpp performs the fixed,
+ * bounded conversion at the HAL boundary.
  *
  * Alignment:
  *   __attribute__((packed))  — no internal padding (we control it manually)
  *   alignas(64)              — one struct per cache line; prevents false sharing
  *                              when orders sit in a pre-allocated pool array.
  *
- * Memory pool usage:
- *   Orders are allocated from a pre-allocated pool (see order_pool.hpp).
- *   New/delete are never called on the hot path.
+ * Allocation policy:
+ *   OrderBook accepts caller-owned nodes so a later arena/slab allocator can
+ *   replace allocation without altering matching semantics. The M7 facade
+ *   retains stable nodes with one allocation per admitted order until the
+ *   benchmark demonstrates whether pooling is worth the additional machinery.
  *
  * FPGA note (M8):
- *   This struct maps directly to the 64-byte frame sent over PCIe BAR.
- *   The FPGA ITCH parser writes ORDER_FRAME frames into a hugepage-backed
- *   DMA ring buffer; the CPU polling loop casts the slot pointer to Order*.
+ *   ORDER_FRAME remains the DMA ABI. Hardware and host must consume it using
+ *   the documented byte order; native Order is deliberately an internal type.
  */
 #pragma once
 
@@ -65,8 +68,8 @@ struct alignas(64) Order {
     // 1 + 1 + 1 + 1 bytes
     Side     side;
     OType    order_type;
-    OStatus  status;
     TIF      time_in_force;
+    OStatus  status;
 
     // 6 bytes padding to reach 64 bytes
     uint8_t  _pad[6];
@@ -96,6 +99,11 @@ static_assert(alignof(Order) == 64, "Order must be aligned to a cache line");
 
 // ── Trade (64 bytes) ──────────────────────────────────────────────────────────
 
+#ifdef _MSC_VER
+#pragma warning(push)
+// The final bytes are intentional reserved cache-line padding in the wire-oriented type.
+#pragma warning(disable : 4324)
+#endif
 struct alignas(64) Trade {
     uint8_t  trade_id[16];      // UUID
     double   price;
@@ -108,5 +116,8 @@ struct alignas(64) Trade {
 };
 
 static_assert(sizeof(Trade) == 64, "Trade must be exactly 64 bytes");
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 }  // namespace hft
