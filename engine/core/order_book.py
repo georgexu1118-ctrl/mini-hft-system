@@ -176,7 +176,10 @@ class OrderBook:
             book[price] = PriceLevel(price=price)
         book[price].add(order)
         self._cancel_map[order.order_id] = (order.side, price)
-        order.status = OrderStatus.OPEN
+        # A residual may rest after an execution; preserve PARTIALLY_FILLED so
+        # downstream risk and persistence consumers observe the executed state.
+        if order.filled_quantity == 0:
+            order.status = OrderStatus.OPEN
 
     # ── Public API ────────────────────────────────────────────────────────────
 
