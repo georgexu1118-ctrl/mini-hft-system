@@ -10,7 +10,7 @@ load balancer), replace the in-process sets with a Redis Pub/Sub layer
 so broadcasts reach clients regardless of which pod they connected to.
 """
 from __future__ import annotations
-import asyncio
+
 from collections import defaultdict
 
 from fastapi import WebSocket

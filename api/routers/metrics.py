@@ -47,6 +47,7 @@ async def get_metrics(
             "p50": snap.p50_us,
             "p99": snap.p99_us,
             "p999": snap.p999_us,
+            "rolling_sample_count": snap.latency_sample_count,
             "note": "processing_latency only (engine queue → match complete)",
         },
         "infrastructure": {
@@ -60,7 +61,12 @@ async def get_metrics(
                 "failed_batches": snap.persistence_failed_batches,
                 "dropped_events": snap.persistence_dropped_events,
             },
+            "strategy_runtime": {
+                "callback_failures": snap.strategy_callback_failures,
+                "dropped_events": snap.strategy_dropped_events,
+            },
         },
+        "strategies": snap.strategy_metrics,
         "timestamp_ns": snap.timestamp_ns,
     }
 
@@ -74,7 +80,7 @@ async def get_latency(
         "p50_us": snap.p50_us,
         "p99_us": snap.p99_us,
         "p999_us": snap.p999_us,
-        "sample_count": snap.orders_received,
+        "sample_count": snap.latency_sample_count,
         "timestamp_ns": snap.timestamp_ns,
     }
 

@@ -15,7 +15,7 @@ Background task architecture:
   market_data_loop  — ticks synthetic feeds → publishes TickerEvents
   ws_broadcast_loop — drains EventBus → serialises → broadcasts to WS clients
   heartbeat_loop    — sends HEARTBEAT to all clients every 30s
-  latency_push_loop — pushes LatencySnapshot every 5s to all clients
+  latency_push_loop — pushes rolling latency, PnL, and health every second
 """
 from __future__ import annotations
 
@@ -28,16 +28,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from api.routers import market_data, metrics, orders
+from api.routers import market_data, metrics, orders, strategies
+from api.services.book_stream_service import BookDeltaProjector
 from api.services.metrics_service import MetricsService
 from api.services.order_service import OrderService
+from api.services.trade_tape_service import TradeTapeService
 from api.websocket.manager import ConnectionManager
 from api.websocket.schemas import (
-    BookLevel,
-    BookUpdateMessage,
     HeartbeatMessage,
     LatencySnapshotMessage,
     OrderAckMessage,
+    PnlMessage,
+    StrategyMetricsMessage,
+    SystemHealthMessage,
     TickerMessage,
     TradeMessage,
 )
@@ -70,18 +73,6 @@ def _to_ws_message(event: DomainEvent) -> Optional[BaseModel]:
     This is the cold path — Pydantic serialisation only happens here,
     not inside the engine. The engine knows nothing about Pydantic.
     """
-    if isinstance(event, (BookUpdateEvent,)) and event.snapshot:
-        snap = event.snapshot
-        return BookUpdateMessage(
-            symbol=snap.symbol,
-            sequence=snap.sequence,
-            bids=[BookLevel(price=p, quantity=q, order_count=c) for p, q, c in snap.bids],
-            asks=[BookLevel(price=p, quantity=q, order_count=c) for p, q, c in snap.asks],
-            spread=snap.spread,
-            mid_price=snap.mid_price,
-            timestamp_ns=snap.timestamp_ns,
-        )
-
     if isinstance(event, TradeEvent) and event.trade:
         t = event.trade
         return TradeMessage(
@@ -134,12 +125,17 @@ def _to_ws_message(event: DomainEvent) -> Optional[BaseModel]:
 
 # ── Background tasks ──────────────────────────────────────────────────────────
 
-async def ws_broadcast_loop(event_bus: EventBus, ws_manager: ConnectionManager) -> None:
+async def ws_broadcast_loop(
+    event_bus: EventBus,
+    ws_manager: ConnectionManager,
+    book_projector: BookDeltaProjector,
+) -> None:
     """
     Drain the EventBus and push messages to WebSocket clients.
 
-    Subscribed to all event types. On each event: translate → serialise →
-    broadcast. This coroutine is the only place Pydantic serialisation happens.
+    Subscribed to all event types. Depth images are projected into sequenced
+    deltas; other events are translated and broadcast. Pydantic serialization
+    stays in this cold-path coroutine.
     """
     q = event_bus.subscribe(
         EventType.BOOK_UPDATE,
@@ -153,7 +149,11 @@ async def ws_broadcast_loop(event_bus: EventBus, ws_manager: ConnectionManager) 
     )
     while True:
         event: DomainEvent = await q.get()
-        msg = _to_ws_message(event)
+        msg = (
+            book_projector.project(event.snapshot)
+            if isinstance(event, BookUpdateEvent) and event.snapshot is not None
+            else _to_ws_message(event)
+        )
         if msg:
             await ws_manager.broadcast_to_symbol(event.symbol, msg)
 
@@ -166,14 +166,13 @@ async def heartbeat_loop(ws_manager: ConnectionManager) -> None:
 
 
 async def latency_push_loop(
-    engine: MatchingEngine,
-    event_bus: EventBus,
+    metrics_service: MetricsService,
     ws_manager: ConnectionManager,
 ) -> None:
-    """Push LatencySnapshot every 5 seconds so the dashboard stays fresh."""
+    """Push rolling latency, PnL, strategy, and health projections."""
     while True:
-        await asyncio.sleep(5)
-        stats = engine.stats
+        await asyncio.sleep(1)
+        stats = metrics_service.snapshot()
         msg = LatencySnapshotMessage(
             p50_us=stats.p50_us,
             p99_us=stats.p99_us,
@@ -181,9 +180,23 @@ async def latency_push_loop(
             orders_received=stats.orders_received,
             trades_executed=stats.trades_executed,
             total_volume=stats.total_volume,
-            dropped_events=event_bus.dropped_events,
+            dropped_events=stats.dropped_events,
         )
         await ws_manager.broadcast_all(msg)
+        await ws_manager.broadcast_all(StrategyMetricsMessage(strategies=stats.strategy_metrics))
+        await ws_manager.broadcast_all(PnlMessage(strategies=stats.strategy_metrics))
+        degraded = (
+            stats.dropped_events > 0
+            or stats.persistence_failed_batches > 0
+            or stats.strategy_callback_failures > 0
+        )
+        await ws_manager.broadcast_all(SystemHealthMessage(
+            status="DEGRADED" if degraded else "OK",
+            event_bus_drops=stats.dropped_events,
+            persistence_drops=stats.persistence_dropped_events,
+            persistence_failed_batches=stats.persistence_failed_batches,
+            strategy_callback_failures=stats.strategy_callback_failures,
+        ))
 
 
 # ── Application factory ───────────────────────────────────────────────────────
@@ -196,6 +209,8 @@ async def lifespan(app: FastAPI):
     ws_manager: ConnectionManager = app.state.ws_manager
     persistence_writer: AsyncDatabaseWriter | None = app.state.persistence_writer
     strategy_runtime: StrategyRuntime = app.state.strategy_runtime
+    metrics_service: MetricsService = app.state.metrics_service
+    trade_tape_service: TradeTapeService = app.state.trade_tape_service
 
     # Register instruments
     for sym in DEFAULT_SYMBOLS:
@@ -212,9 +227,11 @@ async def lifespan(app: FastAPI):
     # Spin up background tasks
     tasks = [
         asyncio.create_task(publisher.run()),
-        asyncio.create_task(ws_broadcast_loop(event_bus, ws_manager)),
+        asyncio.create_task(ws_broadcast_loop(event_bus, ws_manager, app.state.book_projector)),
         asyncio.create_task(heartbeat_loop(ws_manager)),
-        asyncio.create_task(latency_push_loop(engine, event_bus, ws_manager)),
+        asyncio.create_task(latency_push_loop(metrics_service, ws_manager)),
+        asyncio.create_task(metrics_service.run()),
+        asyncio.create_task(trade_tape_service.run()),
     ]
     writer_task: asyncio.Task[None] | None = None
     if persistence_writer:
@@ -253,6 +270,8 @@ def create_app() -> FastAPI:
     app.state.ws_manager = ConnectionManager()
     app.state.order_service = OrderService(app.state.engine, app.state.event_bus)
     app.state.strategy_runtime = StrategyRuntime(app.state.event_bus, app.state.order_service)
+    app.state.book_projector = BookDeltaProjector()
+    app.state.trade_tape_service = TradeTapeService(app.state.event_bus)
     app.state.persistence_writer = None
     if settings.persistence_enabled:
         app.state.persistence_writer = AsyncDatabaseWriter(
@@ -269,6 +288,7 @@ def create_app() -> FastAPI:
         app.state.engine,
         app.state.event_bus,
         app.state.persistence_writer,
+        app.state.strategy_runtime,
     )
 
     # ── Middleware ────────────────────────────────────────────────────────────
@@ -284,12 +304,19 @@ def create_app() -> FastAPI:
     app.include_router(orders.router,      prefix="/api/v1/orders",       tags=["Orders"])
     app.include_router(market_data.router, prefix="/api/v1/market-data",  tags=["Market Data"])
     app.include_router(metrics.router,     prefix="/api/v1/metrics",      tags=["Metrics"])
+    app.include_router(strategies.router,  prefix="/api/v1/strategies",   tags=["Strategies"])
 
     # ── Health ────────────────────────────────────────────────────────────────
     @app.get("/health", tags=["Health"])
     async def health() -> dict:
+        current = app.state.metrics_service.snapshot()
+        degraded = (
+            current.dropped_events > 0
+            or current.persistence_failed_batches > 0
+            or current.strategy_callback_failures > 0
+        )
         return {
-            "status": "ok",
+            "status": "degraded" if degraded else "ok",
             "version": settings.api_version,
             "timestamp_ns": time.time_ns(),
         }

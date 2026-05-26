@@ -14,23 +14,22 @@ The callback MUST be synchronous and MUST NOT await anything.
 This is the core discipline that keeps the hot path clean.
 """
 from __future__ import annotations
-import time
+
 from typing import Optional
 
-from engine.core.matching_engine import MatchingEngine, EngineEvent
+from engine.core.matching_engine import EngineEvent, MatchingEngine
 from engine.core.order import Order
 from engine.core.order_book import MatchResult
 from engine.core.types import EventType, OrderId
-
 from shared.events import (
+    BookUpdateEvent,
     EventBus,
     OrderAckedEvent,
+    OrderCancelledEvent,
     OrderFilledEvent,
     OrderPartiallyFilledEvent,
-    OrderCancelledEvent,
     OrderRejectedEvent,
     TradeEvent,
-    BookUpdateEvent,
 )
 
 

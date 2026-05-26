@@ -89,6 +89,12 @@ In C++: one CPU core pinned exclusively to the engine thread. No context switche
 
 `SimpleMarketMaker` now performs cancel/replace quoting on meaningful market moves, quotes both sides of an inventory-adjusted reservation price, and refreshes quotes after fills. The runtime accounts for positions and average-cost realised/unrealised PnL. Its synchronous `replay()` entry point processes the same ordered domain events without wall-clock scheduling, because reproducible backtests and incident reconstruction depend on deterministic event order.
 
+### 2b. Dashboard Read Model (M6)
+
+The backend now provides dashboard-ready DTOs without adding UI complexity. A socket subscription begins with `BOOK_SNAPSHOT`; subsequent `BOOK_DELTA` messages carry `previous_sequence`/`sequence` and only changed price levels (quantity `0` deletes a level). This is the exchange-standard recovery model: clients detect a sequence gap and request a new snapshot instead of consuming a high-bandwidth full book after every change.
+
+JSON/Pydantic serialization remains in the API fan-out layer, never in matching. JSON favors browser interoperability; a higher-throughput market-data gateway could replace that layer with a compact binary codec. The dashboard projection also exposes a bounded trade tape, one-second rolling latency (`p50`, `p99`, `p999`), strategy/PnL frames, and system-health frames reporting persistence or strategy degradation.
+
 ### 3. Pure Computation Boundary
 
 `engine/` has zero dependency on FastAPI, SQLAlchemy, or asyncio. Its interface is:
@@ -240,13 +246,18 @@ mini-hft-system/
 │   ├── routers/
 │   │   ├── orders.py           # POST/DELETE/GET /orders
 │   │   ├── market_data.py      # Snapshot REST + WebSocket endpoint
-│   │   └── metrics.py          # Latency and engine stats
+│   │   ├── metrics.py          # Rolling latency and system health
+│   │   └── strategies.py       # Strategy control and PnL read model
+│   ├── models/
+│   │   └── market_data.py      # REST dashboard DTOs
 │   ├── websocket/
 │   │   ├── manager.py          # Connection + subscription management
 │   │   └── schemas.py          # Pydantic WS message models
 │   └── services/
 │       ├── order_service.py    # Engine↔EventBus bridge
-│       └── metrics_service.py  # Stats aggregation
+│       ├── book_stream_service.py # Snapshot/delta projection
+│       ├── trade_tape_service.py  # Bounded recent execution tape
+│       └── metrics_service.py  # Rolling stats aggregation
 │
 ├── shared/                     # Cross-package domain types
 │   ├── events.py               # DomainEvent subclasses + EventBus
@@ -329,6 +340,7 @@ curl -X POST http://localhost:8000/api/v1/orders/ \
 |--------|----------|-------------|
 | `GET` | `/api/v1/market-data/symbols` | List symbols |
 | `GET` | `/api/v1/market-data/{symbol}/snapshot` | Point-in-time book |
+| `GET` | `/api/v1/market-data/{symbol}/trades` | Recent trade tape |
 | `WS` | `/api/v1/market-data/ws` | Real-time stream |
 
 ### Metrics
@@ -338,6 +350,14 @@ curl -X POST http://localhost:8000/api/v1/orders/ \
 | `GET` | `/api/v1/metrics/` | Full engine stats |
 | `GET` | `/api/v1/metrics/latency` | Latency percentiles |
 | `GET` | `/api/v1/metrics/ws` | WS connection stats |
+
+### Strategies
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/strategies/` | Strategy position and PnL metrics |
+| `POST` | `/api/v1/strategies/market-makers` | Start a risk-gated market maker |
+| `POST` | `/api/v1/strategies/{id}/kill` | Activate kill switch and cancel quotes |
 
 ---
 
@@ -359,11 +379,15 @@ Connect to `ws://localhost:8000/api/v1/market-data/ws`
 
 | `type` | Description |
 |--------|-------------|
-| `BOOK_UPDATE` | Full depth snapshot after every book change |
+| `BOOK_SNAPSHOT` | Initial/recovery depth image on subscription |
+| `BOOK_DELTA` | Sequence-numbered changed/deleted levels |
 | `TRADE` | Public trade print |
 | `ORDER_ACK` | Order status update (ack, fill, cancel) |
 | `TICKER` | Synthetic bid/ask/last from market data feed |
-| `LATENCY_SNAPSHOT` | p50/p99/p999 pushed every 5 seconds |
+| `LATENCY_SNAPSHOT` | Rolling p50/p99/p999 pushed every second |
+| `STRATEGY_METRICS` | Position, risk and execution counters |
+| `PNL` | Realised/unrealised strategy PnL stream |
+| `SYSTEM_HEALTH` | Event drops and failed-consumer indicators |
 | `HEARTBEAT` | Keep-alive, every 30 seconds |
 | `ERROR` | Server-side error |
 
@@ -378,7 +402,7 @@ Connect to `ws://localhost:8000/api/v1/market-data/ws`
 | **M3** | Market data feed (GBM) | ✅ Done |
 | **M4** | PostgreSQL persistence (async writer) | Done |
 | **M5** | Strategy sandbox + executor | Done |
-| **M6** | Next.js dashboard (order book ladder, latency charts) | 🔜 Planned |
+| **M6** | Dashboard API/streaming read model (UI deferred) | Done |
 | **M7** | C++ matching engine (Python binding via ctypes/pybind11) | 🔜 Future |
 | **M8** | FPGA research notes + simulation | 🔜 Future |
 
@@ -422,7 +446,7 @@ Key FPGA concepts to explore:
 | Real-time | WebSockets (native FastAPI) | Zero round-trip for push; no polling |
 | Database | PostgreSQL + SQLAlchemy Core/asyncpg | Batched append-only trade log off the hot path |
 | Config | Pydantic-Settings | Type-safe env var parsing |
-| Frontend | Next.js 16 + TypeScript (M6) | React server components, real-time charts |
+| Frontend | Deferred | M6 delivers stable dashboard APIs before UI expansion |
 | Deployment | Docker Compose → Vercel/Supabase | Dev parity, one-command deploy |
 
 ---
@@ -431,5 +455,4 @@ Key FPGA concepts to explore:
 
 Built as a learning project. PRs welcome for:
 - Additional order types (Stop, Stop-Limit, Iceberg)
-- Frontend dashboard (M6)
 - C++ engine binding (M7)

@@ -7,11 +7,15 @@ a big if-elif chain.
 
 TypeScript equivalent (for the frontend):
     type WSMessage =
-      | BookUpdateMessage
+      | BookSnapshotMessage
+      | BookDeltaMessage
       | TradeMessage
       | OrderAckMessage
       | TickerMessage
       | LatencySnapshotMessage
+      | StrategyMetricsMessage
+      | PnlMessage
+      | SystemHealthMessage
       | HeartbeatMessage
       | ErrorMessage;
 
@@ -22,10 +26,11 @@ FlatBuffers, protobuf) would halve serialisation cost but complicate
 browser clients. JSON is fine for our simulation scale.
 """
 from __future__ import annotations
+
 import time
 from typing import Literal
-from pydantic import BaseModel, Field
 
+from pydantic import BaseModel, Field
 
 # ── Sub-objects ───────────────────────────────────────────────────────────────
 
@@ -38,14 +43,11 @@ class BookLevel(BaseModel):
 
 # ── Server → Client messages ──────────────────────────────────────────────────
 
-class BookUpdateMessage(BaseModel):
+class BookSnapshotMessage(BaseModel):
     """
-    Full depth snapshot pushed after every book-changing event.
-
-    In production: send deltas (only changed levels) to reduce bandwidth.
-    For a simulator with < 1k subscribers, full snapshots are fine.
+    Recovery/bootstrap image of depth. Clients apply following deltas in order.
     """
-    type: Literal["BOOK_UPDATE"] = "BOOK_UPDATE"
+    type: Literal["BOOK_SNAPSHOT"] = "BOOK_SNAPSHOT"
     symbol: str
     sequence: int                  # monotonically increasing per symbol
     bids: list[BookLevel]          # sorted descending (best bid first)
@@ -53,6 +55,24 @@ class BookUpdateMessage(BaseModel):
     spread: float | None = None
     mid_price: float | None = None
     timestamp_ns: int = Field(default_factory=time.time_ns)
+
+
+class BookDeltaMessage(BaseModel):
+    """Changed levels only; quantity zero deletes a level from local state."""
+
+    type: Literal["BOOK_DELTA"] = "BOOK_DELTA"
+    symbol: str
+    previous_sequence: int
+    sequence: int
+    bids: list[BookLevel]
+    asks: list[BookLevel]
+    spread: float | None = None
+    mid_price: float | None = None
+    timestamp_ns: int = Field(default_factory=time.time_ns)
+
+
+# Retain the import surface for consumers built against the first API milestone.
+BookUpdateMessage = BookSnapshotMessage
 
 
 class TradeMessage(BaseModel):
@@ -125,6 +145,28 @@ class LatencySnapshotMessage(BaseModel):
     trades_executed: int = 0
     total_volume: int = 0
     dropped_events: int = 0
+    timestamp_ns: int = Field(default_factory=time.time_ns)
+
+
+class StrategyMetricsMessage(BaseModel):
+    type: Literal["STRATEGY_METRICS"] = "STRATEGY_METRICS"
+    strategies: dict[str, dict[str, float | int | str | None]]
+    timestamp_ns: int = Field(default_factory=time.time_ns)
+
+
+class PnlMessage(BaseModel):
+    type: Literal["PNL"] = "PNL"
+    strategies: dict[str, dict[str, float | int | str | None]]
+    timestamp_ns: int = Field(default_factory=time.time_ns)
+
+
+class SystemHealthMessage(BaseModel):
+    type: Literal["SYSTEM_HEALTH"] = "SYSTEM_HEALTH"
+    status: Literal["OK", "DEGRADED"]
+    event_bus_drops: int
+    persistence_drops: int
+    persistence_failed_batches: int
+    strategy_callback_failures: int
     timestamp_ns: int = Field(default_factory=time.time_ns)
 
 

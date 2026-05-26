@@ -115,6 +115,11 @@ class StrategyRuntime:
             for strategy_id, strategy in self._strategies.items()
         }
 
+    @property
+    def strategies(self) -> dict[str, BaseStrategy]:
+        """Registered strategies for service-layer control and inspection."""
+        return dict(self._strategies)
+
     def _on_book_update(self, event: BookUpdateEvent) -> None:
         snapshot = event.snapshot
         assert snapshot is not None

@@ -9,6 +9,7 @@ REST is the slow path — used for order submission and querying.
 The fast path for real-time state is WebSocket (BOOK_UPDATE / ORDER_ACK).
 """
 from __future__ import annotations
+
 import time
 from typing import Optional
 

@@ -10,14 +10,17 @@ WebSocket message protocol (client → server):
     {"action": "unsubscribe",   "symbol": "AAPL"}
     {"action": "subscribe_all"}         # all symbols, all events
 
-Server will immediately start pushing BookUpdateMessage, TradeMessage,
-TickerMessage, and OrderAckMessage to the client.
+Server sends a BookSnapshotMessage on subscription, followed by sequenced
+BookDeltaMessage, TradeMessage, TickerMessage, and OrderAckMessage frames.
 """
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 
-from api.dependencies import get_engine, get_ws_manager
+from api.dependencies import get_engine, get_trade_tape_service, get_ws_manager
+from api.models.market_data import BookSnapshotDTO, TradeTapeDTO
+from api.services.book_stream_service import BookDeltaProjector
+from api.services.trade_tape_service import TradeTapeService
 from api.websocket.manager import ConnectionManager
 from api.websocket.schemas import ErrorMessage
 from engine.core.matching_engine import MatchingEngine
@@ -37,13 +40,13 @@ async def get_snapshot(
     symbol: str,
     depth: int = 10,
     engine: MatchingEngine = Depends(get_engine),
-) -> dict:
+) -> BookSnapshotDTO:
     """
     Returns the current state of the order book for `symbol` up to `depth`
     levels on each side.
 
     Use this for initial page load. After that, subscribe via WebSocket
-    and receive incremental BOOK_UPDATE messages for real-time updates.
+    and receive incremental BOOK_DELTA messages for real-time updates.
     """
     snap = engine.get_snapshot(symbol.upper(), depth)
     if snap is None:
@@ -51,23 +54,17 @@ async def get_snapshot(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Symbol '{symbol}' not found",
         )
-    return {
-        "symbol": snap.symbol,
-        "sequence": snap.sequence,
-        "bids": [
-            {"price": p, "quantity": q, "order_count": c}
-            for p, q, c in snap.bids
-        ],
-        "asks": [
-            {"price": p, "quantity": q, "order_count": c}
-            for p, q, c in snap.asks
-        ],
-        "best_bid": snap.best_bid,
-        "best_ask": snap.best_ask,
-        "spread": snap.spread,
-        "mid_price": snap.mid_price,
-        "timestamp_ns": snap.timestamp_ns,
-    }
+    return BookSnapshotDTO.from_domain(snap)
+
+
+@router.get("/{symbol}/trades", summary="Recent execution tape")
+async def recent_trades(
+    symbol: str,
+    limit: int = 100,
+    tape: TradeTapeService = Depends(get_trade_tape_service),
+) -> list[TradeTapeDTO]:
+    bounded_limit = max(1, min(limit, 500))
+    return [TradeTapeDTO.from_domain(trade) for trade in tape.recent(symbol, bounded_limit)]
 
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────
@@ -76,6 +73,7 @@ async def get_snapshot(
 async def websocket_endpoint(
     ws: WebSocket,
     ws_manager: ConnectionManager = Depends(get_ws_manager),
+    engine: MatchingEngine = Depends(get_engine),
 ) -> None:
     """
     Real-time market data stream.
@@ -83,8 +81,9 @@ async def websocket_endpoint(
     On connect: client is registered but receives nothing until it subscribes.
     Subscribe messages tell the server which symbols to fan out to this client.
 
-    All subsequent market events (book updates, trades, tickers, order acks)
-    for subscribed symbols are pushed as JSON text frames.
+    The initial BOOK_SNAPSHOT is the recovery baseline. Clients apply
+    subsequent BOOK_DELTA frames only while sequence is contiguous and obtain
+    another snapshot if they detect a gap.
 
     Client disconnect (graceful or abrupt) automatically cleans up all
     subscriptions — no explicit unsubscribe required on disconnect.
@@ -99,6 +98,12 @@ async def websocket_endpoint(
                 symbol = (data.get("symbol") or "").upper()
                 if symbol:
                     ws_manager.subscribe(ws, symbol)
+                    snapshot = engine.get_snapshot(symbol)
+                    if snapshot is not None:
+                        await ws_manager.send_personal(
+                            ws,
+                            BookDeltaProjector.snapshot_message(snapshot),
+                        )
                 else:
                     await ws_manager.send_personal(ws, ErrorMessage(
                         code="MISSING_SYMBOL",
@@ -107,6 +112,13 @@ async def websocket_endpoint(
 
             elif action == "subscribe_all":
                 ws_manager.subscribe_all(ws)
+                for symbol in engine.registered_symbols:
+                    snapshot = engine.get_snapshot(symbol)
+                    if snapshot is not None:
+                        await ws_manager.send_personal(
+                            ws,
+                            BookDeltaProjector.snapshot_message(snapshot),
+                        )
 
             elif action == "unsubscribe":
                 symbol = (data.get("symbol") or "").upper()
