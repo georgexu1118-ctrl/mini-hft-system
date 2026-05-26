@@ -1,8 +1,8 @@
 """
-Async SQLAlchemy database setup.
+Async SQLAlchemy Core database setup.
 
-We use SQLAlchemy 2.0 with asyncpg driver. The async session factory is
-initialised once at startup and shared via FastAPI's dependency injection.
+The execution writer uses Core statements through the asyncpg driver. It does
+not construct ORM entities or acquire a connection from matching callbacks.
 
 Connection pooling notes:
   pool_size      — persistent connections kept open (warm, fast to acquire)
@@ -16,24 +16,13 @@ asynchronously from event bus consumers, so DB latency doesn't affect
 order processing latency.
 """
 from __future__ import annotations
-from collections.abc import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from infra.config.settings import settings
+from infra.db.schema import metadata
 
-
-class Base(DeclarativeBase):
-    """Shared declarative base for all ORM models."""
-    pass
-
-
-engine = create_async_engine(
+engine: AsyncEngine = create_async_engine(
     settings.database_url,
     pool_size=settings.db_pool_size,
     max_overflow=settings.db_max_overflow,
@@ -42,38 +31,13 @@ engine = create_async_engine(
     echo=settings.api_debug,   # logs SQL in debug mode
 )
 
-AsyncSessionFactory = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
-
-
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """
-    FastAPI dependency that provides a transactional async DB session.
-
-    Usage:
-        @router.post("/orders")
-        async def create_order(db: AsyncSession = Depends(get_db_session)):
-            ...
-    """
-    async with AsyncSessionFactory() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-
-
 async def create_tables() -> None:
-    """Create all tables. Called at startup if not using Alembic migrations."""
+    """Create Core schema for local development; migrations own production DDL."""
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(metadata.create_all)
 
 
 async def drop_tables() -> None:
     """Drop all tables. Used in tests only."""
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(metadata.drop_all)

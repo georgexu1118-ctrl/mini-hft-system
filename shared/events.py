@@ -13,16 +13,17 @@ Event flow:
   → DatabaseWriter persists asynchronously
 """
 from __future__ import annotations
+
 import asyncio
 import time
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Optional, Callable, Awaitable
+from typing import Awaitable, Callable, Optional
 
-from engine.core.types import EventType, Symbol, TimestampNs
 from engine.core.order import Order, Trade
-from engine.core.order_book import BookSnapshot, MatchResult
+from engine.core.order_book import BookSnapshot
+from engine.core.types import EventType, Symbol, TimestampNs
 
 
 @dataclass
@@ -119,13 +120,21 @@ class EventBus:
         self._queues: dict[EventType, list[asyncio.Queue[DomainEvent]]] = defaultdict(list)
         self._queue_depth = queue_depth
         self._dropped: int = 0
+        self._subscriber_names: dict[int, str] = {}
+        self._subscriber_dropped: dict[str, int] = defaultdict(int)
 
-    def subscribe(self, *event_types: EventType) -> asyncio.Queue[DomainEvent]:
+    def subscribe(
+        self,
+        *event_types: EventType,
+        subscriber_name: str | None = None,
+    ) -> asyncio.Queue[DomainEvent]:
         """
         Subscribe to one or more event types. Returns a queue the caller
         must drain in a background task.
         """
         q: asyncio.Queue[DomainEvent] = asyncio.Queue(maxsize=self._queue_depth)
+        if subscriber_name:
+            self._subscriber_names[id(q)] = subscriber_name
         for et in event_types:
             self._queues[et].append(q)
         return q
@@ -140,6 +149,9 @@ class EventBus:
                 q.put_nowait(event)
             except asyncio.QueueFull:
                 self._dropped += 1
+                subscriber = self._subscriber_names.get(id(q))
+                if subscriber:
+                    self._subscriber_dropped[subscriber] += 1
 
     async def publish(self, event: DomainEvent) -> None:
         """Awaitable publish — use from async code when backpressure is acceptable."""
@@ -149,3 +161,7 @@ class EventBus:
     @property
     def dropped_events(self) -> int:
         return self._dropped
+
+    def dropped_events_for(self, subscriber_name: str) -> int:
+        """Return drops attributed to one cold-path consumer queue."""
+        return self._subscriber_dropped[subscriber_name]

@@ -71,6 +71,12 @@ The engine emits events through a synchronous callback. That callback calls `que
 
 If the queue fills up, events are dropped (not the order). The match already happened — we just lose the notification. In production: monitor drop rate, alert on sustained drops.
 
+### 1a. Asynchronous Persistence (M4)
+
+`AsyncDatabaseWriter` subscribes to order-state and execution events on its own bounded queue and writes PostgreSQL batches through SQLAlchemy Core/asyncpg. It exposes consumed, written, retry, failed-batch, and persistence-specific drop counters through `/api/v1/metrics/`. A storage adapter protocol keeps the consumer replaceable with a durable broker or recovery journal later.
+
+Batching amortizes SQL parsing, network round trips, transaction commits, and PostgreSQL WAL/fsync work across many events. A synchronous insert in `submit_order()` would make acknowledgement tail latency depend on pool waits, WAL flush policy, disk jitter, replication, and database outages; that is catastrophic for a matching hot path. Shutdown stops event producers first, then flushes the writer's admitted queue.
+
 ### 2. Single-Threaded Engine
 
 Real exchange matching engines process one order at a time per partition (instrument group). This eliminates all locking overhead inside the matching loop. Our Python engine follows the same model: one asyncio task serialises all order submissions.
@@ -249,7 +255,10 @@ mini-hft-system/
 │   ├── config/
 │   │   └── settings.py         # Pydantic-settings (reads .env)
 │   └── db/
-│       ├── database.py         # SQLAlchemy async engine + session factory
+│       ├── database.py         # SQLAlchemy async Core engine
+│       ├── schema.py           # Core table definitions
+│       ├── serialization.py    # Domain event to row translation
+│       ├── writer.py           # Bounded async batch persistence service
 │       └── migrations/
 │           └── 001_initial.sql # Initial schema (orders, trades, views)
 │
@@ -359,7 +368,7 @@ Connect to `ws://localhost:8000/api/v1/market-data/ws`
 | **M1** | Core matching engine + tests | ✅ Done |
 | **M2** | FastAPI backend + WebSocket | ✅ Done |
 | **M3** | Market data feed (GBM) | ✅ Done |
-| **M4** | PostgreSQL persistence (async writer) | 🔜 Next |
+| **M4** | PostgreSQL persistence (async writer) | Done |
 | **M5** | Strategy sandbox + executor | 🔜 Planned |
 | **M6** | Next.js dashboard (order book ladder, latency charts) | 🔜 Planned |
 | **M7** | C++ matching engine (Python binding via ctypes/pybind11) | 🔜 Future |
@@ -403,7 +412,7 @@ Key FPGA concepts to explore:
 | Matching engine | Python 3.11 (→ C++) | Pure computation, zero I/O, easy to replace |
 | API | FastAPI | Async-native, auto-docs, Pydantic validation |
 | Real-time | WebSockets (native FastAPI) | Zero round-trip for push; no polling |
-| Database | PostgreSQL + SQLAlchemy async | Append-only trade log, ACID guarantees |
+| Database | PostgreSQL + SQLAlchemy Core/asyncpg | Batched append-only trade log off the hot path |
 | Config | Pydantic-Settings | Type-safe env var parsing |
 | Frontend | Next.js 16 + TypeScript (M6) | React server components, real-time charts |
 | Deployment | Docker Compose → Vercel/Supabase | Dev parity, one-command deploy |
@@ -414,7 +423,6 @@ Key FPGA concepts to explore:
 
 Built as a learning project. PRs welcome for:
 - Additional order types (Stop, Stop-Limit, Iceberg)
-- Persistence layer (M4 async DB writer)
 - Strategy executor (M5)
 - Frontend dashboard (M6)
 - C++ engine binding (M7)

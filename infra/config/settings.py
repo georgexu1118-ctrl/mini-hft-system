@@ -12,6 +12,7 @@ Precedence (highest to lowest):
   4. Defaults defined here
 """
 from __future__ import annotations
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -39,6 +40,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://hft:hft@localhost:5432/hft"
     db_pool_size: int = 10
     db_max_overflow: int = 20
+    persistence_enabled: bool = True
+    persistence_batch_size: int = 250
+    persistence_flush_interval_ms: int = 25
+    persistence_max_retries: int = 3
+    persistence_retry_backoff_ms: int = 20
 
     # ── Engine ───────────────────────────────────────────────────────────────
     event_queue_depth: int = 10_000

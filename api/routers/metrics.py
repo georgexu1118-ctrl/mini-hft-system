@@ -9,6 +9,7 @@ In production: expose a /metrics endpoint in Prometheus format
 and scrape with a sidecar. Build Grafana dashboards on top.
 """
 from __future__ import annotations
+
 import time
 
 from fastapi import APIRouter, Depends
@@ -51,6 +52,14 @@ async def get_metrics(
         "infrastructure": {
             "dropped_events": snap.dropped_events,
             "registered_symbols": snap.registered_symbols,
+            "persistence": {
+                "events_consumed": snap.persistence_events_consumed,
+                "rows_written": snap.persistence_rows_written,
+                "batches_written": snap.persistence_batches_written,
+                "write_retries": snap.persistence_write_retries,
+                "failed_batches": snap.persistence_failed_batches,
+                "dropped_events": snap.persistence_dropped_events,
+            },
         },
         "timestamp_ns": snap.timestamp_ns,
     }

@@ -18,6 +18,7 @@ Background task architecture:
   latency_push_loop — pushes LatencySnapshot every 5s to all clients
 """
 from __future__ import annotations
+
 import asyncio
 import time
 from contextlib import asynccontextmanager
@@ -27,28 +28,37 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from infra.config.settings import settings
-from shared.constants import DEFAULT_SYMBOLS
-from shared.events import (
-    EventBus, EventType,
-    BookUpdateEvent, TradeEvent,
-    OrderAckedEvent, OrderFilledEvent,
-    OrderPartiallyFilledEvent, OrderCancelledEvent,
-    OrderRejectedEvent, TickerEvent, DomainEvent,
+from api.routers import market_data, metrics, orders
+from api.services.metrics_service import MetricsService
+from api.services.order_service import OrderService
+from api.websocket.manager import ConnectionManager
+from api.websocket.schemas import (
+    BookLevel,
+    BookUpdateMessage,
+    HeartbeatMessage,
+    LatencySnapshotMessage,
+    OrderAckMessage,
+    TickerMessage,
+    TradeMessage,
 )
 from engine.core.matching_engine import MatchingEngine
 from engine.market_data.publisher import MarketDataPublisher
-from api.websocket.manager import ConnectionManager
-from api.websocket.schemas import (
-    BookUpdateMessage, BookLevel,
-    TradeMessage, OrderAckMessage,
-    TickerMessage, HeartbeatMessage,
-    LatencySnapshotMessage, ErrorMessage,
+from infra.config.settings import settings
+from infra.db.database import engine as database_engine
+from infra.db.writer import AsyncDatabaseWriter, PostgresCoreSink, WriterConfig
+from shared.constants import DEFAULT_SYMBOLS
+from shared.events import (
+    BookUpdateEvent,
+    DomainEvent,
+    EventBus,
+    EventType,
+    OrderAckedEvent,
+    OrderCancelledEvent,
+    OrderFilledEvent,
+    OrderPartiallyFilledEvent,
+    TickerEvent,
+    TradeEvent,
 )
-from api.services.order_service import OrderService
-from api.services.metrics_service import MetricsService
-from api.routers import orders, market_data, metrics
-
 
 # ── Event → WS message translation ───────────────────────────────────────────
 
@@ -183,6 +193,7 @@ async def lifespan(app: FastAPI):
     engine: MatchingEngine = app.state.engine
     event_bus: EventBus = app.state.event_bus
     ws_manager: ConnectionManager = app.state.ws_manager
+    persistence_writer: AsyncDatabaseWriter | None = app.state.persistence_writer
 
     # Register instruments
     for sym in DEFAULT_SYMBOLS:
@@ -203,13 +214,20 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(heartbeat_loop(ws_manager)),
         asyncio.create_task(latency_push_loop(engine, event_bus, ws_manager)),
     ]
+    writer_task: asyncio.Task[None] | None = None
+    if persistence_writer:
+        writer_task = asyncio.create_task(persistence_writer.run())
 
     yield  # ← Application serves requests here
 
-    # Graceful shutdown
+    # Stop producers first, then drain records already admitted to persistence.
     for t in tasks:
         t.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
+    if persistence_writer and writer_task:
+        persistence_writer.request_stop()
+        await writer_task
+    await database_engine.dispose()
 
 
 def create_app() -> FastAPI:
@@ -229,7 +247,23 @@ def create_app() -> FastAPI:
     app.state.event_bus = EventBus(queue_depth=settings.event_queue_depth)
     app.state.ws_manager = ConnectionManager()
     app.state.order_service = OrderService(app.state.engine, app.state.event_bus)
-    app.state.metrics_service = MetricsService(app.state.engine, app.state.event_bus)
+    app.state.persistence_writer = None
+    if settings.persistence_enabled:
+        app.state.persistence_writer = AsyncDatabaseWriter(
+            event_bus=app.state.event_bus,
+            sink=PostgresCoreSink(database_engine),
+            config=WriterConfig(
+                batch_size=settings.persistence_batch_size,
+                flush_interval_s=settings.persistence_flush_interval_ms / 1_000.0,
+                max_retries=settings.persistence_max_retries,
+                retry_backoff_s=settings.persistence_retry_backoff_ms / 1_000.0,
+            ),
+        )
+    app.state.metrics_service = MetricsService(
+        app.state.engine,
+        app.state.event_bus,
+        app.state.persistence_writer,
+    )
 
     # ── Middleware ────────────────────────────────────────────────────────────
     app.add_middleware(

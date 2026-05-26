@@ -39,8 +39,11 @@ CREATE TABLE IF NOT EXISTS trades (
     quantity          INTEGER     NOT NULL CHECK (quantity > 0),
     notional          NUMERIC(22, 8) GENERATED ALWAYS AS (price * quantity) STORED,
     aggressor_side    VARCHAR(10) NOT NULL,
-    maker_order_id    UUID        NOT NULL REFERENCES orders(order_id),
-    taker_order_id    UUID        NOT NULL REFERENCES orders(order_id),
+    -- Do not enforce FK constraints on the append-only execution tape. The
+    -- bounded cold-path queue may deliberately shed order-state events under
+    -- pressure while retaining a trade print for recovery/audit processing.
+    maker_order_id    UUID        NOT NULL,
+    taker_order_id    UUID        NOT NULL,
     timestamp_ns      BIGINT      NOT NULL,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
