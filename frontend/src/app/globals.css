@@ -1,0 +1,56 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  background-color: #0d1117;
+  color: #e6edf3;
+}
+
+/* Thin scrollbar for dark terminal look */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+::-webkit-scrollbar-thumb {
+  background: #21262d;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #30363d;
+}
+
+/* Recharts tooltip dark override */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: #161b22 !important;
+  border-color: #21262d !important;
+  border-radius: 4px !important;
+}
+
+/* Price flash animations */
+@keyframes flashGreen {
+  0%   { background-color: #3fb95033; }
+  100% { background-color: transparent; }
+}
+@keyframes flashRed {
+  0%   { background-color: #f8514933; }
+  100% { background-color: transparent; }
+}
+
+.flash-green { animation: flashGreen 300ms ease-out; }
+.flash-red   { animation: flashRed   300ms ease-out; }

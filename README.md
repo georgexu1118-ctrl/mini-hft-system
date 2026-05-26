@@ -212,7 +212,29 @@ open http://localhost:8000/docs   # Swagger UI
 docker-compose up --build
 ```
 
-This starts the API on :8000 and PostgreSQL on :5432.
+This starts the API on :8000, PostgreSQL on :5432, and the dashboard on :3000.
+
+### Frontend (Next.js Dashboard)
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start dev server (proxies API calls to localhost:8000)
+npm run dev
+```
+
+Open http://localhost:3000 — you'll see the live trading dashboard.
+
+**What you get:**
+- Real-time order book ladder (10-level bid/ask depth)
+- Live trade tape with BUY/SELL colour coding
+- p50/p99/p999 latency chart (2-minute rolling window)
+- Order entry form with per-order latency breakdown
+- Strategy launcher — spawn `SimpleMarketMaker` and watch it quote
+- System health badge (WS connection, event bus drops, persistence)
 
 ### Run Tests
 
@@ -402,7 +424,7 @@ Connect to `ws://localhost:8000/api/v1/market-data/ws`
 | **M3** | Market data feed (GBM) | ✅ Done |
 | **M4** | PostgreSQL persistence (async writer) | Done |
 | **M5** | Strategy sandbox + executor | Done |
-| **M6** | Dashboard API/streaming read model (UI deferred) | Done |
+| **M6** | Next.js dashboard — order book, latency chart, strategy UI | Done |
 | **M7** | C++ matching engine (Python binding via ctypes/pybind11) | 🔜 Future |
 | **M8** | FPGA research notes + simulation | 🔜 Future |
 

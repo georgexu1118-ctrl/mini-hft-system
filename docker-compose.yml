@@ -21,6 +21,20 @@ services:
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
 
+  # ── Next.js dashboard ──────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ""        # empty = same origin via rewrites
+      NEXT_PUBLIC_WS_URL: "ws://localhost:8000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
