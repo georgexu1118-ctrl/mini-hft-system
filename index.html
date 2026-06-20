@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Mini HFT System — Ultra-Low Latency Electronic Trading Platform</title>
+<meta name="description" content="A high-fidelity electronic trading platform featuring a real-time CLOB matching engine, nanosecond latency profiling, strategy execution framework, and live monitoring dashboards built to professional HFT infrastructure standards."/>
+<meta property="og:title" content="Mini HFT System"/>
+<meta property="og:description" content="Ultra-low latency electronic trading platform. C++ CLOB engine, 1.6µs p50, 542K ops/sec."/>
+<meta property="og:type" content="website"/>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #21262d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+    --teal: #39d353;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 48px;
+    background: rgba(13,17,23,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 15px; letter-spacing: 0.05em;
+    color: var(--text);
+  }
+  .nav-logo .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); animation: pulse 2s infinite;
+  }
+  .nav-links { display: flex; gap: 28px; font-size: 13px; color: var(--muted); }
+  .nav-links a:hover { color: var(--text); transition: color 0.15s; }
+  .gh-link {
+    padding: 6px 16px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 12px; color: var(--muted); font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .gh-link:hover { border-color: var(--text); color: var(--text); }
+
+  /* HERO */
+  .hero {
+    min-height: 92vh;
+    display: grid; grid-template-columns: 1fr 480px;
+    align-items: center; gap: 64px;
+    padding: 80px 64px 64px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 50% at 55% 50%, rgba(88,166,255,0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-grid-bg {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(33,38,45,0.4) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(33,38,45,0.4) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black, transparent);
+    -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black, transparent);
+  }
+  .hero-label {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(63,185,80,0.1); border: 1px solid rgba(63,185,80,0.3);
+    border-radius: 20px; padding: 4px 14px; font-size: 12px;
+    color: var(--green); font-weight: 600; letter-spacing: 0.04em;
+    margin-bottom: 24px;
+  }
+  .hero-label::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green); animation: pulse 1.5s infinite;
+  }
+  h1 {
+    font-size: 56px; font-weight: 800; line-height: 1.08;
+    letter-spacing: -0.025em; color: var(--text);
+    margin-bottom: 22px;
+  }
+  h1 .accent { color: var(--accent); }
+  .hero-sub {
+    font-size: 17px; color: var(--muted); max-width: 500px;
+    line-height: 1.75; margin-bottom: 40px;
+  }
+  .hero-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn-primary {
+    padding: 13px 28px; background: var(--accent); border-radius: 8px;
+    font-size: 14px; font-weight: 700; color: #0d1117;
+    cursor: pointer; border: none; transition: opacity 0.15s;
+    text-decoration: none;
+  }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-ghost {
+    padding: 13px 28px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; font-weight: 600; color: var(--muted);
+    cursor: pointer; background: none;
+    transition: border-color 0.15s, color 0.15s;
+    text-decoration: none; display: inline-block;
+  }
+  .btn-ghost:hover { border-color: var(--muted); color: var(--text); }
+
+  /* TERMINAL WIDGET */
+  .terminal {
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; box-shadow: 0 28px 72px rgba(0,0,0,0.55);
+    position: relative; z-index: 1;
+  }
+  .terminal-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 11px 16px;
+    background: var(--bg); border-bottom: 1px solid var(--border);
+  }
+  .t-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .t-dot.r { background: #ff5f57; }
+  .t-dot.y { background: #febc2e; }
+  .t-dot.g { background: #28c840; }
+  .terminal-title { font-size: 12px; color: var(--muted); margin-left: 8px; font-family: monospace; }
+  .terminal-body { padding: 16px; }
+
+  /* BOOK */
+  .book-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 12px;
+  }
+  .book-sym { font-size: 15px; font-weight: 700; color: var(--accent); }
+  .book-venue { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .book-price { font-size: 22px; font-weight: 700; color: var(--text); font-family: monospace; }
+  .book-change { font-size: 11px; text-align: right; margin-top: 2px; }
+  .book-cols {
+    display: grid; grid-template-columns: 44px 1fr 80px;
+    font-size: 10px; color: var(--muted); font-weight: 700;
+    letter-spacing: 0.06em; padding: 0 2px; margin-bottom: 4px;
+  }
+  .book-cols span:last-child { text-align: right; }
+  .book-asks { display: flex; flex-direction: column-reverse; }
+  .book-bids { display: flex; flex-direction: column; }
+  .book-row {
+    display: grid; grid-template-columns: 44px 1fr 80px;
+    align-items: center; padding: 2px 2px;
+    position: relative; overflow: hidden; font-size: 12px; font-family: monospace;
+  }
+  .book-row .bar {
+    position: absolute; top: 0; bottom: 0; opacity: 0.15;
+    transition: width 0.3s ease;
+  }
+  .book-row.ask .bar { background: var(--red); right: 0; }
+  .book-row.bid .bar { background: var(--green); left: 0; }
+  .book-row.ask .price { color: var(--red); text-align: right; font-weight: 600; }
+  .book-row.bid .price { color: var(--green); text-align: right; font-weight: 600; }
+  .book-row .qty { color: var(--text); padding-left: 4px; }
+  .book-row .oc { color: var(--muted); font-size: 10px; }
+  .book-spread {
+    display: flex; justify-content: space-between;
+    padding: 5px 6px; margin: 3px 0;
+    background: var(--bg); border-radius: 4px;
+    font-size: 10px; color: var(--muted); font-family: monospace;
+  }
+  .book-spread span { color: var(--text); }
+
+  /* TAPE */
+  .tape-title {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+    color: var(--muted); margin-top: 14px; margin-bottom: 6px;
+  }
+  .tape-row {
+    display: grid; grid-template-columns: 68px 44px 1fr 60px;
+    align-items: center; padding: 2px 0;
+    font-size: 11px; font-family: monospace;
+    border-bottom: 1px solid rgba(33,38,45,0.5);
+    transition: background 0.3s;
+  }
+  .tape-row .ts { color: var(--muted); font-size: 10px; }
+  .side-buy { color: var(--green); font-weight: 700; }
+  .side-sell { color: var(--red); font-weight: 700; }
+  .tape-row .tp { color: var(--text); }
+  .tape-row .tq { color: var(--muted); text-align: right; }
+
+  /* LATENCY STRIP */
+  .lat-strip { display: flex; gap: 8px; margin-top: 14px; }
+  .lat-box {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px; text-align: center;
+  }
+  .lat-label { font-size: 9px; color: var(--muted); font-weight: 700; letter-spacing: 0.06em; margin-bottom: 3px; }
+  .lat-val { font-size: 17px; font-weight: 700; font-family: monospace; }
+
+  /* STATS BAR */
+  .stats-bar {
+    display: flex; justify-content: center;
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .stat-item {
+    flex: 1; padding: 24px 20px; text-align: center;
+    border-right: 1px solid var(--border);
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-num {
+    font-size: 32px; font-weight: 800; font-family: monospace;
+    color: var(--accent); line-height: 1;
+  }
+  .stat-label { font-size: 11px; color: var(--muted); margin-top: 6px; letter-spacing: 0.04em; }
+
+  /* SECTIONS */
+  section { padding: 80px 64px; }
+  .divider { height: 1px; background: var(--border); margin: 0 64px; }
+  .section-tag {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+    color: var(--accent); text-transform: uppercase; margin-bottom: 14px;
+  }
+  h2 {
+    font-size: 40px; font-weight: 800; line-height: 1.12;
+    letter-spacing: -0.02em; margin-bottom: 18px;
+  }
+  .section-sub {
+    font-size: 16px; color: var(--muted); max-width: 600px;
+    line-height: 1.75; margin-bottom: 52px;
+  }
+
+  /* ARCHITECTURE */
+  .arch-grid {
+    border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; background: var(--surface);
+  }
+  .arch-row { display: flex; border-bottom: 1px solid var(--border); }
+  .arch-row:last-child { border-bottom: none; }
+  .arch-block {
+    flex: 1; padding: 18px 22px;
+    border-right: 1px solid var(--border);
+  }
+  .arch-block:last-child { border-right: none; }
+  .arch-block-layer { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 5px; }
+  .arch-block-name { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .arch-block-desc { font-size: 12px; color: var(--muted); line-height: 1.55; }
+  .arch-tag {
+    display: inline-block; font-size: 9px; font-weight: 700;
+    padding: 2px 7px; border-radius: 3px; margin-top: 8px;
+    letter-spacing: 0.05em;
+  }
+  .tag-hot { background: rgba(248,81,73,0.12); color: var(--red); border: 1px solid rgba(248,81,73,0.25); }
+  .tag-warm { background: rgba(210,153,34,0.1); color: var(--yellow); border: 1px solid rgba(210,153,34,0.25); }
+  .tag-cold { background: rgba(88,166,255,0.1); color: var(--accent); border: 1px solid rgba(88,166,255,0.2); }
+  .arch-arrow {
+    display: flex; align-items: center; justify-content: center;
+    padding: 8px; background: var(--bg); border-bottom: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  /* FEATURES */
+  .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .feature-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 26px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .feature-card:hover { border-color: rgba(88,166,255,0.4); transform: translateY(-2px); }
+  .feature-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; margin-bottom: 16px;
+  }
+  .feature-name { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+  .feature-desc { font-size: 13px; color: var(--muted); line-height: 1.65; }
+  .feature-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 14px; }
+  .pill {
+    font-size: 10px; font-weight: 600; padding: 2px 9px;
+    border-radius: 20px; background: var(--bg); border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  /* BENCH */
+  .bench-table {
+    width: 100%; border-collapse: collapse;
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    background: var(--surface);
+  }
+  .bench-table th {
+    padding: 13px 18px; background: var(--bg);
+    font-size: 11px; font-weight: 700; color: var(--muted);
+    letter-spacing: 0.07em; text-transform: uppercase;
+    text-align: left; border-bottom: 1px solid var(--border);
+  }
+  .bench-table td { padding: 11px 18px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .bench-table tr:last-child td { border-bottom: none; }
+  .bench-table tr:hover td { background: rgba(88,166,255,0.03); }
+  .bar-cell { display: flex; align-items: center; gap: 10px; }
+  .bar-track { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .bar-fill.fast { background: var(--green); }
+  .bar-fill.med { background: var(--yellow); }
+  .bar-fill.slow { background: var(--red); }
+  .val-num { min-width: 56px; text-align: right; font-family: monospace; font-size: 12px; }
+
+  /* CODE */
+  .code-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .code-block {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .code-hdr {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .code-hdr span { font-size: 12px; color: var(--muted); font-family: monospace; margin-left: 6px; }
+  pre {
+    padding: 20px; font-size: 12px; font-family: 'Consolas', 'Fira Code', 'Monaco', monospace;
+    line-height: 1.75; overflow-x: auto; color: var(--text);
+  }
+  .kw { color: #ff7b72; }
+  .fn { color: #d2a8ff; }
+  .cm { color: #6e7681; font-style: italic; }
+  .st { color: #a5d6ff; }
+  .nm { color: #79c0ff; }
+
+  /* MILESTONES */
+  .milestone-list { display: flex; flex-direction: column; max-width: 760px; }
+  .ms-item {
+    display: flex; align-items: flex-start; gap: 20px;
+    padding: 22px 0; border-bottom: 1px solid var(--border);
+  }
+  .ms-item:last-child { border-bottom: none; }
+  .ms-num {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+  }
+  .ms-num.done { background: rgba(63,185,80,0.12); color: var(--green); border: 1.5px solid rgba(63,185,80,0.35); }
+  .ms-num.scaffold { background: rgba(210,153,34,0.1); color: var(--yellow); border: 1.5px solid rgba(210,153,34,0.3); }
+  .ms-title { font-size: 15px; font-weight: 700; margin-bottom: 5px; }
+  .ms-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .ms-badge {
+    margin-left: auto; flex-shrink: 0;
+    font-size: 10px; font-weight: 700; padding: 3px 9px;
+    border-radius: 4px; align-self: flex-start; letter-spacing: 0.04em;
+    background: rgba(63,185,80,0.1); color: var(--green);
+    border: 1px solid rgba(63,185,80,0.25);
+  }
+  .ms-badge.scaffold {
+    background: rgba(210,153,34,0.1); color: var(--yellow);
+    border-color: rgba(210,153,34,0.25);
+  }
+
+  /* STACK */
+  .stack-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .stack-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px; text-align: center;
+    transition: border-color 0.2s;
+  }
+  .stack-card:hover { border-color: rgba(88,166,255,0.3); }
+  .stack-icon { font-size: 26px; margin-bottom: 10px; }
+  .stack-name { font-size: 13px; font-weight: 700; margin-bottom: 5px; }
+  .stack-why { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+  /* FOOTER */
+  footer {
+    padding: 40px 64px;
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .footer-logo { font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em; }
+  .footer-links { display: flex; gap: 24px; font-size: 12px; color: var(--muted); }
+  .footer-links a:hover { color: var(--text); }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; padding: 48px 24px; gap: 40px; }
+    nav { padding: 12px 24px; }
+    nav .nav-links { display: none; }
+    section { padding: 56px 24px; }
+    .divider { margin: 0 24px; }
+    h1 { font-size: 36px; }
+    h2 { font-size: 28px; }
+    .features-grid { grid-template-columns: 1fr; }
+    .stats-bar { flex-wrap: wrap; }
+    .stack-grid { grid-template-columns: repeat(2,1fr); }
+    .code-grid { grid-template-columns: 1fr; }
+    footer { flex-direction: column; gap: 16px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <div class="dot"></div>
+    MINI HFT
+  </div>
+  <div class="nav-links">
+    <a href="#architecture">Architecture</a>
+    <a href="#performance">Performance</a>
+    <a href="#features">Features</a>
+    <a href="#milestones">Roadmap</a>
+  </div>
+  <a class="gh-link" href="https://github.com/georgexu1118-ctrl/mini-hft-system" target="_blank" rel="noopener">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    View on GitHub
+  </a>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="home">
+  <div class="hero-grid-bg"></div>
+  <div style="position:relative;z-index:1;">
+    <div class="hero-label">Live Simulation Active</div>
+    <h1>Ultra-Low Latency.<br><span class="accent">Production-Grade</span><br>Design.</h1>
+    <p class="hero-sub">
+      A high-fidelity electronic trading platform featuring a real-time CLOB matching engine,
+      nanosecond latency profiling, strategy execution framework, and live monitoring dashboards —
+      built to professional HFT infrastructure standards.
+    </p>
+    <div class="hero-btns">
+      <a href="#architecture" class="btn-primary">Explore Architecture</a>
+      <a href="#performance" class="btn-ghost">View Benchmarks</a>
+    </div>
+  </div>
+
+  <!-- LIVE TERMINAL -->
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="t-dot r"></div>
+      <div class="t-dot y"></div>
+      <div class="t-dot g"></div>
+      <div class="terminal-title">mini-hft · AXTI &nbsp;<span id="market-badge" style="font-size:10px;padding:2px 7px;border-radius:3px;border:1px solid;color:var(--muted);border-color:var(--muted);">○ connecting…</span></div>
+    </div>
+    <div class="terminal-body">
+      <div class="book-header">
+        <div>
+          <div class="book-sym">AXTI</div>
+          <div class="book-venue">NASDAQ · Central Limit Order Book</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="book-price" id="mid-price">—</div>
+          <div class="book-change" id="price-change" style="color:var(--muted);">fetching…</div>
+          <div id="price-source" style="font-size:9px;color:var(--muted);margin-top:3px;letter-spacing:0.04em;">Yahoo Finance</div>
+        </div>
+      </div>
+
+      <div class="book-cols">
+        <span>ORDERS</span><span>SIZE</span><span style="text-align:right;">PRICE</span>
+      </div>
+
+      <div class="book-asks" id="asks"></div>
+      <div class="book-spread">
+        <span>SPRD <span id="spread-val">0.02</span></span>
+        <span>MID <span id="mid-val" style="color:var(--accent);">150.00</span></span>
+        <span>SEQ <span id="seq-val">1</span></span>
+      </div>
+      <div class="book-bids" id="bids"></div>
+
+      <div class="tape-title">EXECUTION TAPE</div>
+      <div id="tape"></div>
+
+      <div class="lat-strip">
+        <div class="lat-box">
+          <div class="lat-label">p50</div>
+          <div class="lat-val" id="lat50" style="color:var(--green);">1.6µs</div>
+        </div>
+        <div class="lat-box">
+          <div class="lat-label">p99</div>
+          <div class="lat-val" id="lat99" style="color:var(--yellow);">5.7µs</div>
+        </div>
+        <div class="lat-box">
+          <div class="lat-label">p999</div>
+          <div class="lat-val" id="lat999" style="color:var(--red);">26.3µs</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stat-item">
+    <div class="stat-num">1.6µs</div>
+    <div class="stat-label">C++ Frame p50 Latency</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">542K</div>
+    <div class="stat-label">Orders / Second (Native)</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">M8</div>
+    <div class="stat-label">FPGA Scaffold Complete</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">O(1)</div>
+    <div class="stat-label">Cancel Lookup via Stable Pointers</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">100+</div>
+    <div class="stat-label">Engine + Conformance Tests</div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="section-tag">System Design</div>
+  <h2>Hot path. Cold path. Clean separation.</h2>
+  <p class="section-sub">
+    Every design decision mirrors patterns used in production exchange infrastructure.
+    The matching engine never touches I/O — events fan out through a bounded in-process
+    bus at nanosecond cost to persistence and WebSocket consumers.
+  </p>
+
+  <div class="arch-grid">
+    <div class="arch-row">
+      <div class="arch-block" style="flex:3;background:rgba(88,166,255,0.03);">
+        <div class="arch-block-layer">CLIENT TIER</div>
+        <div class="arch-block-name">Browser / Strategy Bots</div>
+        <div class="arch-block-desc">REST POST /orders · WebSocket /api/v1/market-data/ws · Next.js Live Dashboard</div>
+        <span class="arch-tag tag-cold">COLD PATH</span>
+      </div>
+    </div>
+
+    <div class="arch-arrow">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      <span style="font-size:11px;color:var(--muted);margin-left:8px;">HTTP / WebSocket frames</span>
+    </div>
+
+    <div class="arch-row">
+      <div class="arch-block" style="background:rgba(210,153,34,0.04);">
+        <div class="arch-block-layer">API GATEWAY</div>
+        <div class="arch-block-name">FastAPI</div>
+        <div class="arch-block-desc">OrderRouter · MarketDataRouter · MetricsRouter · WS Manager</div>
+        <span class="arch-tag tag-warm">WARM</span>
+      </div>
+      <div class="arch-block" style="background:rgba(210,153,34,0.04);">
+        <div class="arch-block-layer">SERVICE LAYER</div>
+        <div class="arch-block-name">Business Logic</div>
+        <div class="arch-block-desc">OrderService · BookStreamService · TradeTapeService · MetricsService</div>
+        <span class="arch-tag tag-warm">WARM</span>
+      </div>
+      <div class="arch-block" style="background:rgba(210,153,34,0.04);">
+        <div class="arch-block-layer">MARKET DATA</div>
+        <div class="arch-block-name">GBM Publisher</div>
+        <div class="arch-block-desc">Geometric Brownian Motion feed · TICKER events · Async background task</div>
+        <span class="arch-tag tag-warm">WARM</span>
+      </div>
+    </div>
+
+    <div class="arch-arrow">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      <span style="font-size:11px;color:var(--muted);margin-left:8px;">synchronous call — no await, no I/O</span>
+    </div>
+
+    <div class="arch-row">
+      <div class="arch-block" style="flex:3;background:rgba(248,81,73,0.04);">
+        <div class="arch-block-layer">HOT PATH</div>
+        <div class="arch-block-name">MatchingEngine (Python HAL → C++20 pybind11 native)</div>
+        <div class="arch-block-desc">
+          Price-time priority CLOB · No I/O, no async, no logging · Pure computation ·
+          submit_order(Order) → MatchResult · O(log P) insert · O(1) cancel via stable node pointers
+        </div>
+        <span class="arch-tag tag-hot">HOT PATH</span>
+        <span class="arch-tag tag-hot" style="margin-left:4px;">~1.6µs frame p50</span>
+        <span class="arch-tag tag-hot" style="margin-left:4px;">542K ops/sec</span>
+      </div>
+    </div>
+
+    <div class="arch-arrow">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      <span style="font-size:11px;color:var(--muted);margin-left:8px;">queue.put_nowait() — ~100ns, never blocks engine</span>
+    </div>
+
+    <div class="arch-row">
+      <div class="arch-block">
+        <div class="arch-block-layer">EVENT BUS</div>
+        <div class="arch-block-name">asyncio.Queue</div>
+        <div class="arch-block-desc">Bounded per event type · Drop-counted · Never blocks matching · ~100ns put cost</div>
+        <span class="arch-tag tag-warm">IN-PROCESS</span>
+      </div>
+      <div class="arch-block">
+        <div class="arch-block-layer">WS BROADCASTER</div>
+        <div class="arch-block-name">WebSocket Fan-out</div>
+        <div class="arch-block-desc">BOOK_SNAPSHOT/DELTA · TRADE · TICKER · LATENCY_SNAPSHOT · STRATEGY_METRICS</div>
+        <span class="arch-tag tag-cold">COLD</span>
+      </div>
+      <div class="arch-block">
+        <div class="arch-block-layer">PERSISTENCE</div>
+        <div class="arch-block-name">AsyncDatabaseWriter</div>
+        <div class="arch-block-desc">Batched PostgreSQL via asyncpg · Off the hot path · Retry + drop metrics</div>
+        <span class="arch-tag tag-cold">COLD</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-tag">Core Components</div>
+  <h2>Every layer built for speed.</h2>
+  <p class="section-sub">
+    Six independently testable components, each with a defined hot/cold boundary
+    and a replaceable interface for Python, C++, FPGA, or cloud-native upgrade paths.
+  </p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(248,81,73,0.1);">⚡</div>
+      <div class="feature-name">Matching Engine</div>
+      <div class="feature-desc">
+        Central Limit Order Book with price-time-priority FIFO. Python and C++/pybind11
+        backends behind a swappable binary HAL. O(log P) insertion, O(1) cancel via stable
+        intrusive order-node pointers.
+      </div>
+      <div class="feature-pills">
+        <span class="pill">CLOB</span>
+        <span class="pill">C++20</span>
+        <span class="pill">pybind11</span>
+        <span class="pill">FPGA-ready</span>
+        <span class="pill">GTC/IOC/FOK</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(88,166,255,0.1);">📊</div>
+      <div class="feature-name">Order Book</div>
+      <div class="feature-desc">
+        10-level bid/ask depth with sequence-aware BOOK_SNAPSHOT/DELTA protocol.
+        Clients detect sequence gaps and request a fresh snapshot — the exchange-standard
+        recovery model used by NASDAQ, CME, and NYSE.
+      </div>
+      <div class="feature-pills">
+        <span class="pill">SortedDict</span>
+        <span class="pill">FIFO levels</span>
+        <span class="pill">Delta encoding</span>
+        <span class="pill">Seq. recovery</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(63,185,80,0.1);">🤖</div>
+      <div class="feature-name">Strategy Runtime</div>
+      <div class="feature-desc">
+        Event-driven executor with kill-switch, inventory-adjusted PnL,
+        cancel/replace quoting on meaningful market moves, and deterministic
+        replay for backtesting and incident reconstruction.
+      </div>
+      <div class="feature-pills">
+        <span class="pill">Risk-gated</span>
+        <span class="pill">Position limits</span>
+        <span class="pill">PnL tracking</span>
+        <span class="pill">Replay</span>
+        <span class="pill">Kill switch</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(188,140,255,0.1);">📡</div>
+      <div class="feature-name">Market Data Infrastructure</div>
+      <div class="feature-desc">
+        GBM price feed generating realistic tick sequences. WebSocket-pushed TICKER, TRADE,
+        and BOOK events with sequence numbers. Full book recovery on reconnect. Multi-symbol support.
+      </div>
+      <div class="feature-pills">
+        <span class="pill">GBM</span>
+        <span class="pill">WebSocket</span>
+        <span class="pill">Multi-symbol</span>
+        <span class="pill">Heartbeat</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(210,153,34,0.1);">💾</div>
+      <div class="feature-name">Async Persistence</div>
+      <div class="feature-desc">
+        Batched PostgreSQL writes via SQLAlchemy Core/asyncpg. Completely off the matching
+        hot path. Metrics track consumed, written, retry, and drop rates for full operational visibility.
+      </div>
+      <div class="feature-pills">
+        <span class="pill">PostgreSQL</span>
+        <span class="pill">asyncpg</span>
+        <span class="pill">Batched writes</span>
+        <span class="pill">Idempotent</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(57,211,83,0.1);">🖥️</div>
+      <div class="feature-name">Live Dashboard</div>
+      <div class="feature-desc">
+        Next.js frontend with 10-level order book ladder, rolling p50/p99/p999 latency chart
+        (Recharts), strategy launcher with PnL, trade tape, and system health indicator.
+      </div>
+      <div class="feature-pills">
+        <span class="pill">Next.js 15</span>
+        <span class="pill">Recharts</span>
+        <span class="pill">Tailwind</span>
+        <span class="pill">WebSocket</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- PERFORMANCE -->
+<section id="performance">
+  <div class="section-tag">Benchmark Results — May 2026</div>
+  <h2>The numbers that matter in HFT.</h2>
+  <p class="section-sub">
+    5,000 rounds per scenario on Windows/MSVC. The frame path separates native matching cost
+    from service projection overhead — exactly the view needed before committing to a slab allocator
+    or binary transport layer.
+  </p>
+
+  <table class="bench-table">
+    <thead>
+      <tr>
+        <th>Path / Backend</th>
+        <th>Scenario</th>
+        <th>p50</th>
+        <th>p99</th>
+        <th>p999</th>
+        <th>Ops/sec</th>
+        <th style="min-width:180px;">Relative</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="color:var(--accent);font-weight:600;">Frame / C++</td>
+        <td>Resting insert</td>
+        <td style="color:var(--green);font-family:monospace;font-weight:700;">1.6µs</td>
+        <td style="font-family:monospace;">5.7µs</td>
+        <td style="font-family:monospace;">26.3µs</td>
+        <td style="color:var(--green);font-family:monospace;">542,788</td>
+        <td><div class="bar-cell"><div class="bar-track"><div class="bar-fill fast" style="width:100%"></div></div><span class="val-num" style="color:var(--green);">fastest</span></div></td>
+      </tr>
+      <tr>
+        <td style="color:var(--accent);font-weight:600;">Frame / C++</td>
+        <td>Single fill</td>
+        <td style="color:var(--green);font-family:monospace;font-weight:700;">1.5µs</td>
+        <td style="font-family:monospace;">6.5µs</td>
+        <td style="font-family:monospace;">25.4µs</td>
+        <td style="color:var(--green);font-family:monospace;">583,512</td>
+        <td><div class="bar-cell"><div class="bar-track"><div class="bar-fill fast" style="width:100%"></div></div><span class="val-num" style="color:var(--green);">fastest</span></div></td>
+      </tr>
+      <tr>
+        <td style="color:var(--accent);font-weight:600;">Frame / C++</td>
+        <td>10-level sweep</td>
+        <td style="color:var(--yellow);font-family:monospace;font-weight:700;">3.2µs</td>
+        <td style="font-family:monospace;">8.1µs</td>
+        <td style="font-family:monospace;">13.7µs</td>
+        <td style="color:var(--yellow);font-family:monospace;">282,892</td>
+        <td><div class="bar-cell"><div class="bar-track"><div class="bar-fill med" style="width:48%"></div></div><span class="val-num">×2</span></div></td>
+      </tr>
+      <tr>
+        <td style="color:var(--accent);font-weight:600;">Object / C++</td>
+        <td>Resting insert</td>
+        <td style="font-family:monospace;">19.2µs</td>
+        <td style="font-family:monospace;">35.7µs</td>
+        <td style="font-family:monospace;">73.0µs</td>
+        <td style="font-family:monospace;">49,870</td>
+        <td><div class="bar-cell"><div class="bar-track"><div class="bar-fill fast" style="width:28%"></div></div><span class="val-num">×11</span></div></td>
+      </tr>
+      <tr>
+        <td style="color:var(--muted);">Object / Python</td>
+        <td>Single fill</td>
+        <td style="font-family:monospace;">9.2µs</td>
+        <td style="font-family:monospace;">12.2µs</td>
+        <td style="font-family:monospace;">23.1µs</td>
+        <td style="font-family:monospace;">107,345</td>
+        <td><div class="bar-cell"><div class="bar-track"><div class="bar-fill med" style="width:18%"></div></div><span class="val-num">×5.5</span></div></td>
+      </tr>
+      <tr>
+        <td style="color:var(--muted);">Object / Python</td>
+        <td>Resting insert</td>
+        <td style="color:var(--red);font-family:monospace;">231.3µs</td>
+        <td style="color:var(--red);font-family:monospace;">656.6µs</td>
+        <td style="color:var(--red);font-family:monospace;">4,450µs</td>
+        <td style="color:var(--muted);font-family:monospace;">3,492</td>
+        <td><div class="bar-cell"><div class="bar-track"><div class="bar-fill slow" style="width:6%"></div></div><span class="val-num" style="color:var(--muted);">baseline</span></div></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<div class="divider"></div>
+
+<!-- CODE -->
+<section>
+  <div class="section-tag">Design Principles</div>
+  <h2>The hot-path contract.</h2>
+  <p class="section-sub">
+    The engine boundary enforces a zero-I/O invariant. No FastAPI, no SQLAlchemy, no asyncio —
+    pure computation behind a single protocol that Python, C++, and FPGA all implement identically.
+  </p>
+
+  <div class="code-grid">
+    <div class="code-block">
+      <div class="code-hdr">
+        <div class="t-dot g"></div>
+        <span>engine/hal/abstract.py — replaceable matching contract</span>
+      </div>
+      <pre><span class="cm"># Python, C++, and FPGA all implement this.
+# OrderService never sees a concrete engine.</span>
+<span class="kw">class</span> <span class="nm">MatchingHAL</span>(<span class="nm">Protocol</span>):
+    <span class="kw">def</span> <span class="fn">submit_order</span>(
+        self, order: <span class="nm">Order</span>
+    ) -> <span class="nm">MatchResult</span>: ...
+
+    <span class="kw">def</span> <span class="fn">cancel_order</span>(
+        self, order_id: <span class="st">str</span>
+    ) -> <span class="nm">Order</span> | <span class="kw">None</span>: ...
+
+    <span class="kw">def</span> <span class="fn">get_snapshot</span>(
+        self, symbol: <span class="st">str</span>
+    ) -> <span class="nm">BookSnapshot</span> | <span class="kw">None</span>: ...</pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-hdr">
+        <div class="t-dot g"></div>
+        <span>shared/events.py — non-blocking fan-out</span>
+      </div>
+      <pre><span class="cm"># publish_nowait: ~100ns.
+# Never blocks the matching hot path.
+# DB and WS push drain independently.</span>
+<span class="kw">class</span> <span class="nm">EventBus</span>:
+    <span class="kw">def</span> <span class="fn">publish_nowait</span>(
+        self, event: <span class="nm">DomainEvent</span>
+    ) -> <span class="kw">None</span>:
+        <span class="kw">for</span> q <span class="kw">in</span> self._queues[event.type]:
+            <span class="kw">try</span>:
+                q.put_nowait(event)
+            <span class="kw">except</span> <span class="nm">asyncio</span>.QueueFull:
+                <span class="cm"># metric, not an error</span>
+                self.drop_count += <span class="nm">1</span></pre>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- MILESTONES -->
+<section id="milestones">
+  <div class="section-tag">Implementation Roadmap</div>
+  <h2>Eight milestones. Production discipline.</h2>
+  <p class="section-sub">Each milestone adds one major capability without breaking existing test coverage or API contracts.</p>
+
+  <div class="milestone-list">
+    <div class="ms-item">
+      <div class="ms-num done">M1</div>
+      <div>
+        <div class="ms-title">Core Matching Engine + Tests</div>
+        <div class="ms-desc">Price-time priority CLOB, full order lifecycle, 30+ unit tests for fill semantics, cancel, and TIF variants (GTC, IOC, FOK, Market).</div>
+      </div>
+      <div class="ms-badge">✓ Done</div>
+    </div>
+    <div class="ms-item">
+      <div class="ms-num done">M2</div>
+      <div>
+        <div class="ms-title">FastAPI Backend + WebSocket</div>
+        <div class="ms-desc">Async API gateway with EventBus fan-out, REST order management, and full WebSocket protocol with 10+ message types.</div>
+      </div>
+      <div class="ms-badge">✓ Done</div>
+    </div>
+    <div class="ms-item">
+      <div class="ms-num done">M3</div>
+      <div>
+        <div class="ms-title">Market Data Feed (GBM)</div>
+        <div class="ms-desc">Geometric Brownian Motion price generator, async background publisher, TICKER events, multi-symbol support (AAPL, TSLA, MSFT, AMZN, NVDA).</div>
+      </div>
+      <div class="ms-badge">✓ Done</div>
+    </div>
+    <div class="ms-item">
+      <div class="ms-num done">M4</div>
+      <div>
+        <div class="ms-title">PostgreSQL Async Persistence</div>
+        <div class="ms-desc">Batched asyncpg writer with drop counters, idempotent retry, and health metrics — completely off the matching hot path.</div>
+      </div>
+      <div class="ms-badge">✓ Done</div>
+    </div>
+    <div class="ms-item">
+      <div class="ms-num done">M5</div>
+      <div>
+        <div class="ms-title">Strategy Sandbox + Executor</div>
+        <div class="ms-desc">Risk-gated OrderGateway, kill-switch, inventory-adjusted PnL, SimpleMarketMaker with cancel/replace quoting, deterministic replay.</div>
+      </div>
+      <div class="ms-badge">✓ Done</div>
+    </div>
+    <div class="ms-item">
+      <div class="ms-num done">M6</div>
+      <div>
+        <div class="ms-title">Next.js Live Dashboard</div>
+        <div class="ms-desc">10-level order book ladder, rolling p50/p99/p999 latency chart, strategy launcher with PnL readout, trade tape, system health monitoring.</div>
+      </div>
+      <div class="ms-badge">✓ Done</div>
+    </div>
+    <div class="ms-item">
+      <div class="ms-num done">M7</div>
+      <div>
+        <div class="ms-title">C++20 CLOB Engine + Binary HAL</div>
+        <div class="ms-desc">C++20 matching core with pybind11 bindings, 64-byte ORDER_FRAME wire ABI, parity tests against Python engine, full benchmark suite with p50/p99/p999/throughput.</div>
+      </div>
+      <div class="ms-badge">✓ Done</div>
+    </div>
+    <div class="ms-item">
+      <div class="ms-num scaffold">M8</div>
+      <div>
+        <div class="ms-title">FPGA HAL Scaffold</div>
+        <div class="ms-desc">PCIe DMA ring architecture, XRT integration design, BRAM-backed price-level arrays, parallel comparators, target &lt;200ns order-to-trade.</div>
+      </div>
+      <div class="ms-badge scaffold">Scaffold</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- STACK -->
+<section>
+  <div class="section-tag">Technology Stack</div>
+  <h2>Chosen for latency. Built to replace.</h2>
+  <p class="section-sub">Each layer sits in the right position on the hot/cold spectrum with a seam for production upgrade to FPGA or cloud-native infrastructure.</p>
+
+  <div class="stack-grid">
+    <div class="stack-card">
+      <div class="stack-icon">⚙️</div>
+      <div class="stack-name">C++20 / Python 3.11</div>
+      <div class="stack-why">HAL-switched matching core. Zero I/O. Swappable without touching service code.</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">🚀</div>
+      <div class="stack-name">FastAPI</div>
+      <div class="stack-why">Async-native ASGI. Auto-docs. Pydantic validation at API boundaries.</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">🔌</div>
+      <div class="stack-name">WebSockets</div>
+      <div class="stack-why">Zero round-trip push. Sequence-aware SNAPSHOT/DELTA recovery protocol.</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">🗄️</div>
+      <div class="stack-name">PostgreSQL + asyncpg</div>
+      <div class="stack-why">Batched async writes. Append-only trade log. Completely off the hot path.</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">⚡</div>
+      <div class="stack-name">Next.js 15</div>
+      <div class="stack-why">App Router. Tailwind CSS. Recharts for real-time latency visualization.</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">🐳</div>
+      <div class="stack-name">Docker Compose</div>
+      <div class="stack-why">One-command dev parity. API + PostgreSQL + Dashboard wired together.</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">🔧</div>
+      <div class="stack-name">pybind11</div>
+      <div class="stack-why">Zero-overhead Python ↔ C++ bridge. No FFI overhead on the native path.</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">📐</div>
+      <div class="stack-name">FPGA / XRT (M8)</div>
+      <div class="stack-why">PCIe DMA ring. BRAM price arrays. Parallel comparators. &lt;200ns target.</div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">MINI HFT SYSTEM</div>
+  <div class="footer-links">
+    <a href="#architecture">Architecture</a>
+    <a href="#performance">Performance</a>
+    <a href="#features">Features</a>
+    <a href="#milestones">Roadmap</a>
+  </div>
+  <a class="gh-link" href="https://github.com/georgexu1118-ctrl/mini-hft-system" target="_blank" rel="noopener">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</footer>
+
+<script>
+// ─── AXTI REAL PRICE + GBM SIMULATION ─────────────────────────────────────
+let midPrice  = 87.50;  // overwritten on first fetch
+let basePrice = 87.50;  // prev-close — used for % change display
+let seq       = 1;
+let trades    = [];
+const tapeEl  = document.getElementById('tape');
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function rand(a, b)    { return Math.random() * (b - a) + a; }
+function randInt(a, b) { return Math.floor(rand(a, b + 1)); }
+function fmtP(p)       { return p.toFixed(2); }
+function fmtQ(q)       { return q.toLocaleString(); }
+
+// ── US Eastern market hours ───────────────────────────────────────────────
+function etNow() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+}
+function isMarketOpen() {
+  const et = etNow(), day = et.getDay();
+  if (day === 0 || day === 6) return false;
+  const m = et.getHours() * 60 + et.getMinutes();
+  return m >= 570 && m < 960; // 9:30–16:00 ET
+}
+function sessionLabel() {
+  const et = etNow(), day = et.getDay();
+  const m  = et.getHours() * 60 + et.getMinutes();
+  if (day === 0 || day === 6)        return { text: '○ CLOSED',       color: 'var(--muted)'  };
+  if (m >= 240  && m < 570)          return { text: '◐ PRE-MARKET',   color: 'var(--yellow)' };
+  if (m >= 570  && m < 960)          return { text: '● LIVE',         color: 'var(--green)'  };
+  if (m >= 960  && m < 1200)         return { text: '◑ AFTER-HOURS',  color: 'var(--yellow)' };
+  return                                    { text: '○ CLOSED',       color: 'var(--muted)'  };
+}
+
+// ── Badge + source line ───────────────────────────────────────────────────
+function updateBadge() {
+  const badge = document.getElementById('market-badge');
+  const src   = document.getElementById('price-source');
+  const s     = sessionLabel();
+  if (badge) {
+    badge.textContent        = s.text;
+    badge.style.color        = s.color;
+    badge.style.borderColor  = s.color;
+  }
+  if (src) {
+    src.textContent = isMarketOpen()
+      ? 'Yahoo Finance · live'
+      : 'Yahoo Finance · last close';
+  }
+}
+
+// ── Yahoo Finance fetch (direct + CORS-proxy fallback) ────────────────────
+async function fetchAXTI() {
+  const sym  = 'AXTI';
+  const path = `/v8/finance/chart/${sym}?interval=1m&range=1d`;
+
+  // Try both Yahoo hosts directly first
+  for (const host of ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com']) {
+    try {
+      const res  = await fetch(host + path, { signal: AbortSignal.timeout(5000) });
+      if (!res.ok) continue;
+      const meta = (await res.json())?.chart?.result?.[0]?.meta;
+      if (meta?.regularMarketPrice) return meta;
+    } catch { /* try next */ }
+  }
+
+  // allorigins.win CORS proxy fallback
+  try {
+    const enc  = encodeURIComponent('https://query1.finance.yahoo.com' + path);
+    const res  = await fetch(`https://api.allorigins.win/raw?url=${enc}`, { signal: AbortSignal.timeout(9000) });
+    const meta = (await res.json())?.chart?.result?.[0]?.meta;
+    if (meta?.regularMarketPrice) return meta;
+  } catch { /* all paths failed */ }
+
+  return null;
+}
+
+async function refreshPrice() {
+  const meta = await fetchAXTI();
+  if (meta) {
+    midPrice  = meta.regularMarketPrice;
+    basePrice = meta.chartPreviousClose ?? meta.previousClose ?? meta.regularMarketPrice;
+    document.getElementById('mid-price').textContent = fmtP(midPrice);
+    updatePriceDisplay();
+  }
+  updateBadge();
+}
+
+// ── Order book ────────────────────────────────────────────────────────────
+function generateBook() {
+  // Spread is proportional to price (typical for small-caps ~0.02–0.05%)
+  const spread  = Math.max(0.01, midPrice * 0.0003 + Math.random() * midPrice * 0.0005);
+  const bestAsk = midPrice + spread / 2;
+  const bestBid = midPrice - spread / 2;
+  const asks = [], bids = [];
+  for (let i = 0; i < 7; i++) {
+    asks.push({ price: bestAsk + i * 0.01, qty: randInt(200, 6000), orders: randInt(1, 9) });
+    bids.push({ price: bestBid - i * 0.01, qty: randInt(200, 6000), orders: randInt(1, 9) });
+  }
+  return { asks, bids, spread };
+}
+
+function renderBook(book) {
+  const asksEl = document.getElementById('asks');
+  const bidsEl = document.getElementById('bids');
+  const maxQty = Math.max(...book.asks.map(a => a.qty), ...book.bids.map(b => b.qty), 1);
+
+  asksEl.innerHTML = [...book.asks].slice(0, 7).reverse().map(a => {
+    const pct = (a.qty / maxQty * 100).toFixed(0);
+    return `<div class="book-row ask">
+      <div class="bar" style="width:${pct}%"></div>
+      <span class="oc">${a.orders}</span>
+      <span class="qty">${fmtQ(a.qty)}</span>
+      <span class="price">${fmtP(a.price)}</span>
+    </div>`;
+  }).join('');
+
+  bidsEl.innerHTML = book.bids.slice(0, 7).map(b => {
+    const pct = (b.qty / maxQty * 100).toFixed(0);
+    return `<div class="book-row bid">
+      <div class="bar" style="width:${pct}%"></div>
+      <span class="oc">${b.orders}</span>
+      <span class="qty">${fmtQ(b.qty)}</span>
+      <span class="price">${fmtP(b.price)}</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('spread-val').textContent = book.spread.toFixed(3);
+  document.getElementById('mid-val').textContent    = fmtP(midPrice);
+  document.getElementById('seq-val').textContent    = seq++;
+}
+
+function updatePriceDisplay() {
+  const change = midPrice - basePrice;
+  const pct    = basePrice > 0 ? (change / basePrice * 100) : 0;
+  const el     = document.getElementById('price-change');
+  document.getElementById('mid-price').textContent = fmtP(midPrice);
+  el.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
+  el.style.color = change >= 0 ? 'var(--green)' : 'var(--red)';
+}
+
+function addTrade(price, qty, side) {
+  const ts = new Date().toTimeString().slice(0, 8);
+  trades.unshift({ price, qty, side, ts });
+  if (trades.length > 5) trades.pop();
+  tapeEl.innerHTML = trades.map(t => `
+    <div class="tape-row">
+      <span class="ts">${t.ts}</span>
+      <span class="${t.side === 'BUY' ? 'side-buy' : 'side-sell'}">${t.side}</span>
+      <span class="tp">${fmtP(t.price)}</span>
+      <span class="tq">${fmtQ(t.qty)}</span>
+    </div>
+  `).join('');
+  const first = tapeEl.querySelector('.tape-row');
+  if (first) {
+    first.style.background = side === 'BUY' ? 'rgba(63,185,80,0.1)' : 'rgba(248,81,73,0.1)';
+    setTimeout(() => { if (first) first.style.background = ''; }, 350);
+  }
+}
+
+function updateLatency() {
+  document.getElementById('lat50').textContent  = (1.6  + Math.random() * 0.7).toFixed(1) + 'µs';
+  document.getElementById('lat99').textContent  = (5.7  + Math.random() * 2.5).toFixed(1) + 'µs';
+  document.getElementById('lat999').textContent = (26.3 + Math.random() * 9.0).toFixed(1) + 'µs';
+}
+
+// GBM walk clamped to ±4% of real price so simulation stays anchored
+function walkPrice() {
+  const sigma = 0.35, dt = 1 / 252 / 6500;
+  const dW    = (Math.random() - 0.5) * Math.sqrt(dt);
+  midPrice   *= Math.exp((-0.5 * sigma * sigma) * dt + sigma * dW * 18);
+  midPrice    = Math.max(basePrice * 0.96, Math.min(basePrice * 1.04, midPrice));
+}
+
+function tick() {
+  walkPrice();
+  const book = generateBook();
+  renderBook(book);
+  updatePriceDisplay();
+  if (Math.random() < 0.38) {
+    const side  = Math.random() < 0.5 ? 'BUY' : 'SELL';
+    const price = side === 'BUY' ? book.asks[0].price : book.bids[0].price;
+    addTrade(price, randInt(100, 8000), side);
+  }
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+refreshPrice();                         // fetch real AXTI price immediately
+setInterval(tick, 850);                 // GBM simulation loop
+setInterval(updateLatency, 2800);       // jitter latency gauges
+setInterval(updateBadge, 60_000);       // flip badge at session boundaries
+
+// Re-fetch price: every 60 s when markets are open, every 5 min otherwise
+function scheduleRefresh() {
+  const delay = isMarketOpen() ? 60_000 : 300_000;
+  setTimeout(async () => {
+    await refreshPrice();
+    scheduleRefresh();           // reschedule with updated market-open check
+  }, delay);
+}
+scheduleRefresh();
+</script>
+</body>
+</html>
