@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Mini HFT System — Ultra-Low Latency Electronic Trading Platform</title>
-<meta name="description" content="A high-fidelity electronic trading platform featuring a real-time CLOB matching engine, nanosecond latency profiling, strategy execution framework, and live monitoring dashboards built to professional HFT infrastructure standards."/>
+<meta name="description" content="C++20 and Python matching engine with a swappable binary HAL, 1.6µs p50 latency, 542K orders per second, and a WebSocket-streamed trading dashboard."/>
 <meta property="og:title" content="Mini HFT System"/>
 <meta property="og:description" content="Ultra-low latency electronic trading platform. C++ CLOB engine, 1.6µs p50, 542K ops/sec."/>
 <meta property="og:type" content="website"/>
@@ -25,7 +25,10 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
   body {
-    background: var(--bg);
+    background:
+      radial-gradient(circle at 12% -8%, rgba(88,166,255,0.08), transparent 28rem),
+      radial-gradient(circle at 92% 12%, rgba(57,211,83,0.04), transparent 24rem),
+      var(--bg);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-size: 14px;
@@ -64,8 +67,8 @@
 
   /* HERO */
   .hero {
-    min-height: 92vh;
-    display: grid; grid-template-columns: 1fr 480px;
+    min-height: 92vh; max-width: 1440px; margin: 0 auto;
+    display: grid; grid-template-columns: minmax(0,1fr) 520px;
     align-items: center; gap: 64px;
     padding: 80px 64px 64px;
     position: relative; overflow: hidden;
@@ -87,26 +90,38 @@
   }
   .hero-label {
     display: inline-flex; align-items: center; gap: 8px;
-    background: rgba(63,185,80,0.1); border: 1px solid rgba(63,185,80,0.3);
+    background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3);
     border-radius: 20px; padding: 4px 14px; font-size: 12px;
-    color: var(--green); font-weight: 600; letter-spacing: 0.04em;
+    color: var(--accent); font-weight: 700; letter-spacing: 0.08em;
     margin-bottom: 24px;
   }
   .hero-label::before {
     content: ''; width: 6px; height: 6px; border-radius: 50%;
-    background: var(--green); animation: pulse 1.5s infinite;
+    background: var(--accent); box-shadow: 0 0 12px rgba(88,166,255,0.8);
   }
   h1 {
-    font-size: 56px; font-weight: 800; line-height: 1.08;
+    font-size: clamp(48px, 5vw, 68px); font-weight: 800; line-height: 1.02;
     letter-spacing: -0.025em; color: var(--text);
     margin-bottom: 22px;
   }
-  h1 .accent { color: var(--accent); }
+  h1 .accent {
+    color: transparent;
+    background: linear-gradient(100deg, #79c0ff 0%, #58a6ff 48%, #8bafff 100%);
+    background-clip: text; -webkit-background-clip: text;
+  }
   .hero-sub {
     font-size: 17px; color: var(--muted); max-width: 500px;
     line-height: 1.75; margin-bottom: 40px;
   }
   .hero-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+  .hero-proof {
+    display: flex; gap: 8px; flex-wrap: wrap; margin: -20px 0 30px;
+  }
+  .proof-pill {
+    padding: 5px 9px; border-radius: 5px; border: 1px solid var(--border);
+    background: rgba(22,27,34,0.7); color: var(--muted);
+    font: 600 10px/1.2 'Consolas','Fira Code',monospace; letter-spacing: 0.04em;
+  }
   .btn-primary {
     padding: 13px 28px; background: var(--accent); border-radius: 8px;
     font-size: 14px; font-weight: 700; color: #0d1117;
@@ -127,7 +142,7 @@
   .terminal {
     background: var(--surface);
     border: 1px solid var(--border); border-radius: 12px;
-    overflow: hidden; box-shadow: 0 28px 72px rgba(0,0,0,0.55);
+    overflow: hidden; box-shadow: 0 28px 72px rgba(0,0,0,0.55), 0 0 0 1px rgba(88,166,255,0.04), 0 0 80px rgba(88,166,255,0.08);
     position: relative; z-index: 1;
   }
   .terminal-bar {
@@ -139,8 +154,20 @@
   .t-dot.r { background: #ff5f57; }
   .t-dot.y { background: #febc2e; }
   .t-dot.g { background: #28c840; }
-  .terminal-title { font-size: 12px; color: var(--muted); margin-left: 8px; font-family: monospace; }
+  .terminal-title { flex: 1; font-size: 11px; color: var(--muted); margin-left: 8px; font-family: monospace; }
   .terminal-body { padding: 16px; }
+  .stream-strip {
+    display: grid; grid-template-columns: repeat(3,1fr);
+    border-bottom: 1px solid var(--border); background: rgba(13,17,23,0.7);
+  }
+  .stream-item {
+    padding: 7px 10px; border-right: 1px solid var(--border);
+    color: var(--muted); font: 700 9px/1.2 'Consolas','Fira Code',monospace;
+    letter-spacing: 0.06em; text-align: center;
+  }
+  .stream-item:last-child { border-right: 0; }
+  .stream-item strong { color: var(--text); font-weight: 700; }
+  .stream-item.ok strong { color: var(--green); }
 
   /* BOOK */
   .book-header {
@@ -151,6 +178,7 @@
   .book-venue { font-size: 10px; color: var(--muted); margin-top: 2px; }
   .book-price { font-size: 22px; font-weight: 700; color: var(--text); font-family: monospace; }
   .book-change { font-size: 11px; text-align: right; margin-top: 2px; }
+  .quote-label { font-size: 8px; color: var(--muted); letter-spacing: 0.1em; font-weight: 700; }
   .book-cols {
     display: grid; grid-template-columns: 44px 1fr 80px;
     font-size: 10px; color: var(--muted); font-weight: 700;
@@ -184,9 +212,12 @@
 
   /* TAPE */
   .tape-title {
+    display: flex; align-items: center; justify-content: space-between;
     font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
     color: var(--muted); margin-top: 14px; margin-bottom: 6px;
   }
+  .event-stream { color: var(--green); font-size: 8px; }
+  .event-stream::before { content: ''; display: inline-block; width: 5px; height: 5px; margin-right: 5px; border-radius: 50%; background: var(--green); animation: pulse 1.4s infinite; }
   .tape-row {
     display: grid; grid-template-columns: 68px 44px 1fr 60px;
     align-items: center; padding: 2px 0;
@@ -208,6 +239,19 @@
   }
   .lat-label { font-size: 9px; color: var(--muted); font-weight: 700; letter-spacing: 0.06em; margin-bottom: 3px; }
   .lat-val { font-size: 17px; font-weight: 700; font-family: monospace; }
+  .terminal-note {
+    display: flex; justify-content: space-between; gap: 12px; margin: 11px -16px -16px;
+    padding: 8px 16px; border-top: 1px solid var(--border); background: rgba(13,17,23,0.62);
+    color: var(--muted); font: 9px/1.4 'Consolas','Fira Code',monospace;
+  }
+  .terminal-note span:last-child { text-align: right; }
+  .strategy-strip {
+    display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 8px; margin-top: 10px;
+    padding: 7px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg);
+    color: var(--muted); font: 9px/1.2 'Consolas','Fira Code',monospace;
+  }
+  .strategy-strip strong { color: var(--text); font-size: 10px; }
+  .strategy-strip span:last-child { text-align: right; }
 
   /* STATS BAR */
   .stats-bar {
@@ -294,8 +338,12 @@
   }
 
   /* BENCH */
+  .bench-scroll {
+    width: 100%; overflow-x: auto; border-radius: 10px;
+    overscroll-behavior-inline: contain; scrollbar-color: var(--border) transparent;
+  }
   .bench-table {
-    width: 100%; border-collapse: collapse;
+    width: 100%; min-width: 715px; border-collapse: collapse;
     border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
     background: var(--surface);
   }
@@ -402,6 +450,8 @@
     .stats-bar { flex-wrap: wrap; }
     .stack-grid { grid-template-columns: repeat(2,1fr); }
     .code-grid { grid-template-columns: 1fr; }
+    .terminal-note { flex-direction: column; }
+    .terminal-note span:last-child { text-align: left; }
     footer { flex-direction: column; gap: 16px; text-align: center; }
   }
 </style>
@@ -420,7 +470,7 @@
     <a href="#features">Features</a>
     <a href="#milestones">Roadmap</a>
   </div>
-  <a class="gh-link" href="https://github.com/georgexu1118-ctrl/mini-hft-system" target="_blank" rel="noopener">
+  <a class="gh-link" href="https://github.com/georgxzh/mini-hft-system" target="_blank" rel="noopener">
     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
     View on GitHub
   </a>
@@ -430,13 +480,18 @@
 <section class="hero" id="home">
   <div class="hero-grid-bg"></div>
   <div style="position:relative;z-index:1;">
-    <div class="hero-label">Live Simulation Active</div>
-    <h1>Ultra-Low Latency.<br><span class="accent">Production-Grade</span><br>Design.</h1>
+    <div class="hero-label">C++20 MATCHING · PYTHON CONTROL PLANE</div>
+    <h1>Market structure.<br><span class="accent">Measured in</span><br>microseconds.</h1>
     <p class="hero-sub">
-      A high-fidelity electronic trading platform featuring a real-time CLOB matching engine,
-      nanosecond latency profiling, strategy execution framework, and live monitoring dashboards —
-      built to professional HFT infrastructure standards.
+      A price-time-priority matching engine behind a swappable binary HAL, measured at
+      <strong style="color:var(--text);">1.6µs p50 and 542K orders/sec</strong> — with order-book depth,
+      execution tape, strategy P&amp;L, and latency telemetry streamed over WebSockets.
     </p>
+    <div class="hero-proof" aria-label="Core system capabilities">
+      <span class="proof-pill">64-BYTE ORDER FRAMES</span>
+      <span class="proof-pill">SEQUENCE-AWARE DEPTH</span>
+      <span class="proof-pill">BOUNDED EVENT FAN-OUT</span>
+    </div>
     <div class="hero-btns">
       <a href="#architecture" class="btn-primary">Explore Architecture</a>
       <a href="#performance" class="btn-ghost">View Benchmarks</a>
@@ -449,18 +504,25 @@
       <div class="t-dot r"></div>
       <div class="t-dot y"></div>
       <div class="t-dot g"></div>
-      <div class="terminal-title">mini-hft · AXTI &nbsp;<span id="market-badge" style="font-size:10px;padding:2px 7px;border-radius:3px;border:1px solid;color:var(--muted);border-color:var(--muted);">○ connecting…</span></div>
+      <div class="terminal-title">ws://mini-hft/market-data/AXTI</div>
+      <span id="market-badge" style="font:700 9px monospace;padding:2px 7px;border-radius:3px;border:1px solid;color:var(--muted);border-color:var(--muted);">○ SESSION</span>
+    </div>
+    <div class="stream-strip" aria-label="Dashboard stream status">
+      <div class="stream-item">HAL <strong>C++20</strong></div>
+      <div class="stream-item">PROTOCOL <strong>WEBSOCKET</strong></div>
+      <div class="stream-item ok">SIMULATION <strong>RUNNING</strong></div>
     </div>
     <div class="terminal-body">
       <div class="book-header">
         <div>
           <div class="book-sym">AXTI</div>
-          <div class="book-venue">NASDAQ · Central Limit Order Book</div>
+          <div class="book-venue">NASDAQ reference · simulated CLOB</div>
         </div>
         <div style="text-align:right;">
-          <div class="book-price" id="mid-price">—</div>
+          <div class="quote-label">MARKET REFERENCE</div>
+          <div class="book-price" id="mid-price" aria-live="polite">67.90</div>
           <div class="book-change" id="price-change" style="color:var(--muted);">fetching…</div>
-          <div id="price-source" style="font-size:9px;color:var(--muted);margin-top:3px;letter-spacing:0.04em;">Yahoo Finance</div>
+          <div id="price-source" style="font-size:9px;color:var(--muted);margin-top:3px;letter-spacing:0.04em;">Cached reference · Aug 25</div>
         </div>
       </div>
 
@@ -471,14 +533,21 @@
       <div class="book-asks" id="asks"></div>
       <div class="book-spread">
         <span>SPRD <span id="spread-val">0.02</span></span>
-        <span>MID <span id="mid-val" style="color:var(--accent);">150.00</span></span>
+        <span>SIM MID <span id="mid-val" style="color:var(--accent);">67.90</span></span>
         <span>SEQ <span id="seq-val">1</span></span>
       </div>
       <div class="book-bids" id="bids"></div>
 
-      <div class="tape-title">EXECUTION TAPE</div>
+      <div class="tape-title"><span>SIMULATED EXECUTION TAPE</span><span class="event-stream">WS EVENT PREVIEW</span></div>
       <div id="tape"></div>
 
+      <div class="strategy-strip" aria-label="Simulated strategy P and L stream">
+        <span>STRATEGY<br><strong>mm-axti-01</strong></span>
+        <span>POSITION<br><strong id="strategy-position">+200</strong></span>
+        <span>SIM P&amp;L<br><strong id="strategy-pnl" style="color:var(--green);">+$18.42</strong></span>
+      </div>
+
+      <div class="tape-title"><span>C++ FRAME BENCHMARK</span><span>MAY 2026 · 5K RUNS</span></div>
       <div class="lat-strip">
         <div class="lat-box">
           <div class="lat-label">p50</div>
@@ -492,6 +561,10 @@
           <div class="lat-label">p999</div>
           <div class="lat-val" id="lat999" style="color:var(--red);">26.3µs</div>
         </div>
+      </div>
+      <div class="terminal-note">
+        <span>Quote: delayed external market reference</span>
+        <span>Depth, tape &amp; P&amp;L: simulated WebSocket projections</span>
       </div>
     </div>
   </div>
@@ -737,6 +810,7 @@
     or binary transport layer.
   </p>
 
+  <div class="bench-scroll" tabindex="0" aria-label="Scrollable benchmark results">
   <table class="bench-table">
     <thead>
       <tr>
@@ -806,6 +880,7 @@
       </tr>
     </tbody>
   </table>
+  </div>
 </section>
 
 <div class="divider"></div>
@@ -1000,25 +1075,43 @@
     <a href="#features">Features</a>
     <a href="#milestones">Roadmap</a>
   </div>
-  <a class="gh-link" href="https://github.com/georgexu1118-ctrl/mini-hft-system" target="_blank" rel="noopener">
+  <a class="gh-link" href="https://github.com/georgxzh/mini-hft-system" target="_blank" rel="noopener">
     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
     GitHub
   </a>
 </footer>
 
 <script>
-// ─── AXTI REAL PRICE + GBM SIMULATION ─────────────────────────────────────
-let midPrice  = 87.50;  // overwritten on first fetch
-let basePrice = 87.50;  // prev-close — used for % change display
-let seq       = 1;
-let trades    = [];
-const tapeEl  = document.getElementById('tape');
+// ─── AXTI REFERENCE QUOTE + INDEPENDENT CLOB SIMULATION ───────────────────
+// The market reference never participates in the random walk. This prevents
+// simulated depth from mutating the displayed quote and drifting away from AXTI.
+const FALLBACK_QUOTE = {
+  price: 67.90,
+  previousClose: 65.40,
+  updatedAt: Math.floor(Date.parse('2026-08-25T14:00:00-04:00') / 1000),
+};
+let referencePrice = FALLBACK_QUOTE.price;
+let previousClose  = FALLBACK_QUOTE.previousClose;
+let quoteUpdatedAt = FALLBACK_QUOTE.updatedAt;
+let quoteSession   = 'cached';
+let quoteIsFetched = false;
+let simulatedMid   = referencePrice;
+let strategyPnl    = 18.42;
+let seq            = 1;
+let trades         = [];
+const tapeEl       = document.getElementById('tape');
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function rand(a, b)    { return Math.random() * (b - a) + a; }
 function randInt(a, b) { return Math.floor(rand(a, b + 1)); }
 function fmtP(p)       { return p.toFixed(2); }
 function fmtQ(q)       { return q.toLocaleString(); }
+function fmtEtTime(timestamp) {
+  if (!timestamp) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit',
+  }).format(new Date(timestamp * 1000)) + ' ET';
+}
 
 // ── US Eastern market hours ───────────────────────────────────────────────
 function etNow() {
@@ -1035,7 +1128,7 @@ function sessionLabel() {
   const m  = et.getHours() * 60 + et.getMinutes();
   if (day === 0 || day === 6)        return { text: '○ CLOSED',       color: 'var(--muted)'  };
   if (m >= 240  && m < 570)          return { text: '◐ PRE-MARKET',   color: 'var(--yellow)' };
-  if (m >= 570  && m < 960)          return { text: '● LIVE',         color: 'var(--green)'  };
+  if (m >= 570  && m < 960)          return { text: '● MARKET OPEN',  color: 'var(--green)'  };
   if (m >= 960  && m < 1200)         return { text: '◑ AFTER-HOURS',  color: 'var(--yellow)' };
   return                                    { text: '○ CLOSED',       color: 'var(--muted)'  };
 }
@@ -1043,32 +1136,65 @@ function sessionLabel() {
 // ── Badge + source line ───────────────────────────────────────────────────
 function updateBadge() {
   const badge = document.getElementById('market-badge');
-  const src   = document.getElementById('price-source');
   const s     = sessionLabel();
   if (badge) {
     badge.textContent        = s.text;
     badge.style.color        = s.color;
     badge.style.borderColor  = s.color;
   }
-  if (src) {
-    src.textContent = isMarketOpen()
-      ? 'Yahoo Finance · live'
-      : 'Yahoo Finance · last close';
-  }
 }
 
-// ── Yahoo Finance fetch (direct + CORS-proxy fallback) ────────────────────
+// ── Delayed Yahoo Finance reference (direct + CORS-proxy fallback) ────────
+function parseYahooChart(payload) {
+  const result = payload?.chart?.result?.[0];
+  const meta = result?.meta;
+  if (!meta) return null;
+
+  const timestamps = result.timestamp ?? [];
+  const closes = result.indicators?.quote?.[0]?.close ?? [];
+  const candidates = [
+    { price: meta.regularMarketPrice, time: meta.regularMarketTime, session: 'regular' },
+    { price: meta.postMarketPrice, time: meta.postMarketTime, session: 'after-hours' },
+    { price: meta.preMarketPrice, time: meta.preMarketTime, session: 'pre-market' },
+  ];
+  for (let i = Math.min(timestamps.length, closes.length) - 1; i >= 0; i--) {
+    if (Number.isFinite(closes[i]) && closes[i] > 0) {
+      candidates.push({ price: closes[i], time: timestamps[i], session: 'latest chart' });
+      break;
+    }
+  }
+  const latest = candidates
+    .filter(item => Number.isFinite(item.price) && item.price > 0 && Number.isFinite(item.time))
+    .sort((a, b) => b.time - a.time)[0];
+  if (!latest) return null;
+  return {
+    price: latest.price,
+    previousClose: meta.chartPreviousClose ?? meta.previousClose ?? latest.price,
+    updatedAt: latest.time,
+    session: latest.session,
+  };
+}
+
 async function fetchAXTI() {
   const sym  = 'AXTI';
-  const path = `/v8/finance/chart/${sym}?interval=1m&range=1d`;
+  const path = `/v8/finance/chart/${sym}?interval=1m&range=5d&includePrePost=true`;
+
+  // Same-origin Vercel Function avoids browser CORS failures in production.
+  try {
+    const res = await fetch(`/api/quote?symbol=${sym}`, { signal: AbortSignal.timeout(7000) });
+    if (res.ok) {
+      const quote = await res.json();
+      if (Number.isFinite(quote?.price) && quote.price > 0) return quote;
+    }
+  } catch { /* continue to browser fallbacks */ }
 
   // Try both Yahoo hosts directly first
   for (const host of ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com']) {
     try {
       const res  = await fetch(host + path, { signal: AbortSignal.timeout(5000) });
       if (!res.ok) continue;
-      const meta = (await res.json())?.chart?.result?.[0]?.meta;
-      if (meta?.regularMarketPrice) return meta;
+      const quote = parseYahooChart(await res.json());
+      if (quote) return quote;
     } catch { /* try next */ }
   }
 
@@ -1076,30 +1202,33 @@ async function fetchAXTI() {
   try {
     const enc  = encodeURIComponent('https://query1.finance.yahoo.com' + path);
     const res  = await fetch(`https://api.allorigins.win/raw?url=${enc}`, { signal: AbortSignal.timeout(9000) });
-    const meta = (await res.json())?.chart?.result?.[0]?.meta;
-    if (meta?.regularMarketPrice) return meta;
+    const quote = parseYahooChart(await res.json());
+    if (quote) return quote;
   } catch { /* all paths failed */ }
 
   return null;
 }
 
 async function refreshPrice() {
-  const meta = await fetchAXTI();
-  if (meta) {
-    midPrice  = meta.regularMarketPrice;
-    basePrice = meta.chartPreviousClose ?? meta.previousClose ?? meta.regularMarketPrice;
-    document.getElementById('mid-price').textContent = fmtP(midPrice);
-    updatePriceDisplay();
+  const quote = await fetchAXTI();
+  if (quote) {
+    referencePrice = quote.price;
+    previousClose  = quote.previousClose;
+    quoteUpdatedAt = quote.updatedAt;
+    quoteSession   = quote.session;
+    quoteIsFetched = true;
+    simulatedMid   = referencePrice;
   }
+  updateQuoteDisplay();
   updateBadge();
 }
 
 // ── Order book ────────────────────────────────────────────────────────────
 function generateBook() {
   // Spread is proportional to price (typical for small-caps ~0.02–0.05%)
-  const spread  = Math.max(0.01, midPrice * 0.0003 + Math.random() * midPrice * 0.0005);
-  const bestAsk = midPrice + spread / 2;
-  const bestBid = midPrice - spread / 2;
+  const spread  = Math.max(0.01, simulatedMid * 0.0003 + Math.random() * simulatedMid * 0.0004);
+  const bestAsk = simulatedMid + spread / 2;
+  const bestBid = simulatedMid - spread / 2;
   const asks = [], bids = [];
   for (let i = 0; i < 7; i++) {
     asks.push({ price: bestAsk + i * 0.01, qty: randInt(200, 6000), orders: randInt(1, 9) });
@@ -1134,17 +1263,20 @@ function renderBook(book) {
   }).join('');
 
   document.getElementById('spread-val').textContent = book.spread.toFixed(3);
-  document.getElementById('mid-val').textContent    = fmtP(midPrice);
+  document.getElementById('mid-val').textContent    = fmtP(simulatedMid);
   document.getElementById('seq-val').textContent    = seq++;
 }
 
-function updatePriceDisplay() {
-  const change = midPrice - basePrice;
-  const pct    = basePrice > 0 ? (change / basePrice * 100) : 0;
+function updateQuoteDisplay() {
+  const change = referencePrice - previousClose;
+  const pct    = previousClose > 0 ? (change / previousClose * 100) : 0;
   const el     = document.getElementById('price-change');
-  document.getElementById('mid-price').textContent = fmtP(midPrice);
+  document.getElementById('mid-price').textContent = fmtP(referencePrice);
   el.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
   el.style.color = change >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('price-source').textContent = quoteIsFetched
+    ? `Yahoo Finance · delayed ${quoteSession} · ${fmtEtTime(quoteUpdatedAt)}`
+    : `Cached reference · Aug 25 · ${fmtEtTime(quoteUpdatedAt)}`;
 }
 
 function addTrade(price, qty, side) {
@@ -1166,25 +1298,29 @@ function addTrade(price, qty, side) {
   }
 }
 
-function updateLatency() {
-  document.getElementById('lat50').textContent  = (1.6  + Math.random() * 0.7).toFixed(1) + 'µs';
-  document.getElementById('lat99').textContent  = (5.7  + Math.random() * 2.5).toFixed(1) + 'µs';
-  document.getElementById('lat999').textContent = (26.3 + Math.random() * 9.0).toFixed(1) + 'µs';
+// Mean-reverting simulation clamped to 15 bps around the external reference.
+function walkSimulatedBook() {
+  const shock = (Math.random() - 0.5) * referencePrice * 0.00008;
+  simulatedMid += shock - (simulatedMid - referencePrice) * 0.12;
+  const maxOffset = referencePrice * 0.0015;
+  simulatedMid = Math.max(
+    referencePrice - maxOffset,
+    Math.min(referencePrice + maxOffset, simulatedMid),
+  );
 }
 
-// GBM walk clamped to ±4% of real price so simulation stays anchored
-function walkPrice() {
-  const sigma = 0.35, dt = 1 / 252 / 6500;
-  const dW    = (Math.random() - 0.5) * Math.sqrt(dt);
-  midPrice   *= Math.exp((-0.5 * sigma * sigma) * dt + sigma * dW * 18);
-  midPrice    = Math.max(basePrice * 0.96, Math.min(basePrice * 1.04, midPrice));
+function updateStrategyProjection() {
+  strategyPnl += rand(-0.18, 0.26);
+  const pnlEl = document.getElementById('strategy-pnl');
+  pnlEl.textContent = `${strategyPnl >= 0 ? '+' : '-'}$${Math.abs(strategyPnl).toFixed(2)}`;
+  pnlEl.style.color = strategyPnl >= 0 ? 'var(--green)' : 'var(--red)';
 }
 
 function tick() {
-  walkPrice();
+  walkSimulatedBook();
   const book = generateBook();
   renderBook(book);
-  updatePriceDisplay();
+  updateStrategyProjection();
   if (Math.random() < 0.38) {
     const side  = Math.random() < 0.5 ? 'BUY' : 'SELL';
     const price = side === 'BUY' ? book.asks[0].price : book.bids[0].price;
@@ -1193,14 +1329,16 @@ function tick() {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
-refreshPrice();                         // fetch real AXTI price immediately
-setInterval(tick, 850);                 // GBM simulation loop
-setInterval(updateLatency, 2800);       // jitter latency gauges
+updateQuoteDisplay();                   // honest cached state while fetching
+updateBadge();
+tick();
+refreshPrice();                         // fetch delayed AXTI reference immediately
+setInterval(tick, 850);                 // simulated WebSocket projection loop
 setInterval(updateBadge, 60_000);       // flip badge at session boundaries
 
-// Re-fetch price: every 60 s when markets are open, every 5 min otherwise
+// Re-fetch the delayed reference every 30 s during market hours, 2 min otherwise.
 function scheduleRefresh() {
-  const delay = isMarketOpen() ? 60_000 : 300_000;
+  const delay = isMarketOpen() ? 30_000 : 120_000;
   setTimeout(async () => {
     await refreshPrice();
     scheduleRefresh();           // reschedule with updated market-open check
