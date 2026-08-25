@@ -30,7 +30,7 @@ function latestQuote(result) {
   if (!latest) return null;
   return {
     price: latest.price,
-    previousClose: meta.chartPreviousClose ?? meta.previousClose ?? latest.price,
+    previousClose: meta.previousClose ?? meta.chartPreviousClose ?? latest.price,
     updatedAt: latest.time,
     session: latest.session,
   };
