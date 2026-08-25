@@ -8,6 +8,9 @@
 <meta property="og:title" content="Mini HFT System"/>
 <meta property="og:description" content="Ultra-low latency electronic trading platform. C++ CLOB engine, 1.6µs p50, 542K ops/sec."/>
 <meta property="og:type" content="website"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&amp;family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #0d1117;
@@ -436,22 +439,146 @@
   .footer-links { display: flex; gap: 24px; font-size: 12px; color: var(--muted); }
   .footer-links a:hover { color: var(--text); }
 
+  /* EDITORIAL QUANT THEME — inspired by institutional trading brands */
+  :root {
+    --bg: #f2f2ee; --surface: #ffffff; --border: #c9cbc8; --text: #050505;
+    --muted: #5b6165; --accent: #11b5e4; --green: #36c96f;
+    --red: #ef4f55; --yellow: #d59614;
+  }
+  body { background: #f2f2ee; color: var(--text); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+  nav {
+    height: 64px; padding: 0 max(28px, calc((100vw - 1440px) / 2 + 42px));
+    background: #050505; border: 0; color: #fff;
+  }
+  .nav-logo { color: #fff; font: 800 20px/1 'Barlow Condensed', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+  .nav-logo .dot {
+    width: 22px; height: 22px; border-radius: 0; animation: none;
+    background:
+      linear-gradient(135deg, transparent 0 32%, #11b5e4 33% 66%, transparent 67%) 0 0/11px 11px,
+      linear-gradient(315deg, transparent 0 32%, #fff 33% 66%, transparent 67%) 11px 11px/11px 11px;
+    box-shadow: none;
+  }
+  .nav-links { gap: 38px; color: #fff; font: 700 14px/1 'Barlow Condensed', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+  .nav-links a { padding: 24px 0 21px; border-bottom: 3px solid transparent; }
+  .nav-links a:hover { color: var(--accent); border-color: var(--accent); }
+  .gh-link { border: 1px solid #fff; border-radius: 0; color: #fff; padding: 9px 16px; font: 700 13px/1 'Barlow Condensed', sans-serif; letter-spacing: 0.06em; text-transform: uppercase; }
+  .gh-link:hover { background: var(--accent); border-color: var(--accent); color: #050505; }
+
+  .hero {
+    min-height: calc(100vh - 64px); max-width: none; margin: 0;
+    grid-template-columns: minmax(0, 0.9fr) minmax(480px, 0.78fr);
+    gap: clamp(42px, 6vw, 100px); padding: 100px max(42px, calc((100vw - 1440px) / 2 + 42px));
+    background: #f7f7f3;
+  }
+  .hero::before {
+    inset: auto -12% -24% 34%; width: 80%; height: 92%;
+    background: #e8e9e5; clip-path: polygon(32% 0, 100% 0, 70% 100%, 0 100%);
+  }
+  .hero::after {
+    content: ''; position: absolute; z-index: 0; pointer-events: none;
+    width: 42%; height: 34%; right: -8%; top: 5%; background: var(--accent); opacity: 0.94;
+    clip-path: polygon(24% 0, 100% 0, 76% 100%, 0 100%);
+  }
+  .hero-grid-bg {
+    opacity: 0.45;
+    background-image: linear-gradient(rgba(0,0,0,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.055) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(90deg, #000, transparent 68%);
+    -webkit-mask-image: linear-gradient(90deg, #000, transparent 68%);
+  }
+  .hero-label {
+    margin-bottom: 28px; padding: 7px 12px; border: 0; border-left: 5px solid var(--accent);
+    border-radius: 0; background: #050505; color: #fff;
+    font: 700 13px/1 'IBM Plex Mono', monospace; letter-spacing: 0.06em;
+  }
+  .hero-label::before { display: none; }
+  h1, h2, .stat-num { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; text-transform: uppercase; }
+  h1 {
+    max-width: 760px; margin-bottom: 30px; color: #050505;
+    font-size: clamp(72px, 7.2vw, 116px); font-weight: 900; line-height: 0.82; letter-spacing: -0.035em;
+  }
+  h1 .accent { color: #050505; background: none; -webkit-text-fill-color: currentColor; }
+  .hero-sub { max-width: 650px; margin-bottom: 46px; color: #34383b; font-size: 17px; line-height: 1.72; }
+  .hero-sub strong { color: #050505 !important; }
+  .hero-proof { margin: -25px 0 34px; gap: 0; }
+  .proof-pill { padding: 7px 11px; border: 1px solid #050505; border-right: 0; border-radius: 0; background: transparent; color: #050505; font-family: 'IBM Plex Mono', monospace; }
+  .proof-pill:last-child { border-right: 1px solid #050505; }
+  .btn-primary, .btn-ghost { border-radius: 0; padding: 16px 25px; font: 800 16px/1 'Barlow Condensed', sans-serif; letter-spacing: 0.06em; text-transform: uppercase; }
+  .btn-primary { background: var(--accent); color: #050505; box-shadow: 6px 6px 0 #050505; }
+  .btn-primary:hover { opacity: 1; transform: translate(2px,2px); box-shadow: 4px 4px 0 #050505; }
+  .btn-ghost { border: 2px solid #050505; color: #050505; }
+  .btn-ghost:hover { border-color: #050505; background: #050505; color: #fff; }
+
+  .terminal {
+    --bg: #07090b; --surface: #10151a; --border: #29323a; --text: #eef4f5; --muted: #88949c;
+    --accent: #20b9e7; --green: #38d477; --red: #ff6066; --yellow: #e6a91a;
+    align-self: center; border: 3px solid #050505; border-radius: 0;
+    box-shadow: 18px 18px 0 #050505, -12px -12px 0 rgba(17,181,228,0.92);
+  }
+  .terminal-title, .stream-item, .book-row, .book-spread, .tape-row, .lat-val, .terminal-note, .strategy-strip { font-family: 'IBM Plex Mono', monospace; }
+
+  .stats-bar { background: #050505; border: 0; color: #fff; }
+  .stat-item { padding: 32px 20px; border-right: 1px solid #2d2d2d; }
+  .stat-num { color: var(--accent); font-size: 42px; }
+  .stat-label { color: #9fa4a7; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; }
+  .divider { display: none; }
+  section:not(.hero) { padding: 120px max(42px, calc((100vw - 1440px) / 2 + 42px)); position: relative; }
+  #architecture, #performance, #milestones { background: #f2f2ee; color: #050505; }
+  #features, #principles, #stack {
+    --bg: #050505; --surface: #101214; --border: #2c3033; --text: #f6f7f5; --muted: #9ba2a6;
+    background: #050505; color: #f6f7f5;
+  }
+  .section-tag { display: flex; align-items: center; gap: 12px; color: var(--accent); font: 700 12px/1 'IBM Plex Mono', monospace; letter-spacing: 0.12em; }
+  .section-tag::before { content: ''; width: 46px; height: 4px; background: var(--accent); }
+  h2 { max-width: 940px; font-size: clamp(58px, 6vw, 92px); line-height: 0.94; letter-spacing: -0.025em; }
+  .section-sub { max-width: 720px; font-size: 17px; }
+  #architecture .arch-grid { border: 2px solid #050505; border-radius: 0; background: #fff; box-shadow: 12px 12px 0 var(--accent); }
+  #architecture .arch-row, #architecture .arch-block { border-color: #050505; }
+  #architecture .arch-arrow { background: #e5e6e2; border-color: #050505; color: #050505; font-family: 'IBM Plex Mono', monospace; }
+  .arch-block-name, .feature-name, .ms-title, .stack-name { font-family: 'Barlow Condensed', sans-serif; text-transform: uppercase; letter-spacing: 0.025em; }
+  .arch-block-name { font-size: 20px; }
+  .feature-card, .stack-card, .code-block { border-radius: 0; }
+  .feature-card { padding: 30px; border-top: 4px solid var(--accent); }
+  .feature-card:hover { border-color: var(--accent); transform: translateY(-5px); }
+  .feature-icon { border-radius: 0; background: var(--accent) !important; color: #050505; }
+  .feature-name { font-size: 24px; }
+  .pill { border-radius: 0; font-family: 'IBM Plex Mono', monospace; }
+  .bench-scroll { border: 2px solid #050505; border-radius: 0; box-shadow: 12px 12px 0 var(--accent); }
+  .bench-table { border: 0; border-radius: 0; background: #fff; }
+  .bench-table th { background: #050505; color: #fff; border-color: #050505; font-family: 'IBM Plex Mono', monospace; }
+  .bench-table td { border-color: #d6d7d3; }
+  #principles .code-block { border-top: 4px solid var(--accent); }
+  #principles .code-hdr { background: #161a1d; }
+  .ms-num { border-radius: 0; font-family: 'IBM Plex Mono', monospace; }
+  .ms-title { font-size: 22px; }
+  .ms-item { border-color: #bfc2be; }
+  .ms-badge { border-radius: 0; font-family: 'IBM Plex Mono', monospace; }
+  .stack-card { border-top: 4px solid var(--accent); padding: 26px 20px; }
+  .stack-card:hover { border-color: #fff; transform: translateY(-4px); }
+  .stack-name { font-size: 19px; }
+  footer { padding: 58px max(42px, calc((100vw - 1440px) / 2 + 42px)); background: #050505; border-top: 1px solid #2d2d2d; color: #fff; }
+  .footer-logo { color: #fff; font: 800 22px/1 'Barlow Condensed', sans-serif; letter-spacing: 0.08em; }
+  .footer-links { color: #9fa4a7; font-family: 'Barlow Condensed', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; }
+  .footer-links a:hover { color: var(--accent); }
+
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
 
   @media (max-width: 900px) {
-    .hero { grid-template-columns: 1fr; padding: 48px 24px; gap: 40px; }
+    .hero { min-height: auto; grid-template-columns: 1fr; padding: 64px 24px 78px; gap: 64px; }
     nav { padding: 12px 24px; }
     nav .nav-links { display: none; }
-    section { padding: 56px 24px; }
+    section, section:not(.hero) { padding: 76px 24px; }
     .divider { margin: 0 24px; }
-    h1 { font-size: 36px; }
-    h2 { font-size: 28px; }
+    h1 { font-size: clamp(58px, 18vw, 82px); }
+    h2 { font-size: 48px; }
     .features-grid { grid-template-columns: 1fr; }
     .stats-bar { flex-wrap: wrap; }
     .stack-grid { grid-template-columns: repeat(2,1fr); }
     .code-grid { grid-template-columns: 1fr; }
     .terminal-note { flex-direction: column; }
     .terminal-note span:last-child { text-align: left; }
+    .terminal { box-shadow: 9px 9px 0 #050505, -7px -7px 0 rgba(17,181,228,0.92); }
+    .proof-pill { border-right: 1px solid #050505; margin: 0 4px 4px 0; }
     footer { flex-direction: column; gap: 16px; text-align: center; }
   }
 </style>
@@ -886,7 +1013,7 @@
 <div class="divider"></div>
 
 <!-- CODE -->
-<section>
+<section id="principles">
   <div class="section-tag">Design Principles</div>
   <h2>The hot-path contract.</h2>
   <p class="section-sub">
@@ -1017,7 +1144,7 @@
 <div class="divider"></div>
 
 <!-- STACK -->
-<section>
+<section id="stack">
   <div class="section-tag">Technology Stack</div>
   <h2>Chosen for latency. Built to replace.</h2>
   <p class="section-sub">Each layer sits in the right position on the hot/cold spectrum with a seam for production upgrade to FPGA or cloud-native infrastructure.</p>
