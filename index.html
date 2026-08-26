@@ -10,7 +10,7 @@
 <meta property="og:type" content="website"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&amp;family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #0d1117;
@@ -561,24 +561,151 @@
   .footer-links { color: #9fa4a7; font-family: 'Barlow Condensed', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; }
   .footer-links a:hover { color: var(--accent); }
 
+  /* OPERATOR CONSOLE THEME — restrained, technical, and original */
+  :root {
+    --bg: #0f0f0d; --surface: #171714; --border: #30302b; --text: #f1eeea;
+    --muted: #96938d; --accent: #d8a657; --green: #8fbf75;
+    --red: #d06b65; --yellow: #d8a657;
+  }
+  html { background: #090908; }
+  body {
+    max-width: 1440px; margin: 0 auto; background: var(--bg); color: var(--text);
+    border-left: 1px solid #242421; border-right: 1px solid #242421;
+    font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 14px;
+  }
+  nav {
+    height: 68px; padding: 0 42px; background: rgba(15,15,13,0.94);
+    border-bottom: 1px solid var(--border); color: var(--text); backdrop-filter: blur(14px);
+  }
+  .nav-logo { color: var(--text); font: 700 17px/1 'IBM Plex Mono', monospace; letter-spacing: -0.045em; text-transform: lowercase; }
+  .nav-logo .dot {
+    width: 13px; height: 13px; border: 2px solid var(--text); border-radius: 2px;
+    background: linear-gradient(135deg, transparent 45%, var(--accent) 46% 58%, transparent 59%);
+    box-shadow: none; animation: none;
+  }
+  .nav-links { gap: 30px; color: var(--muted); font: 500 13px/1 'IBM Plex Mono', monospace; letter-spacing: 0; text-transform: lowercase; }
+  .nav-links a { padding: 26px 0 23px; border-bottom: 2px solid transparent; }
+  .nav-links a:hover { color: var(--text); border-color: var(--text); }
+  .gh-link {
+    border: 1px solid var(--text); border-radius: 4px; color: var(--text); padding: 9px 13px;
+    font: 600 12px/1 'IBM Plex Mono', monospace; letter-spacing: 0; text-transform: none;
+  }
+  .gh-link:hover { background: var(--text); border-color: var(--text); color: var(--bg); }
+
+  .hero {
+    min-height: auto; max-width: none; margin: 0; grid-template-columns: minmax(0, 1fr) minmax(430px, .84fr);
+    align-items: center; gap: clamp(48px, 7vw, 104px); padding: 104px 80px 96px; background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .hero::before, .hero::after, .hero-grid-bg { display: none; }
+  .hero-label {
+    margin-bottom: 34px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--muted);
+    font: 500 12px/1.4 'IBM Plex Mono', monospace; letter-spacing: 0; text-transform: lowercase;
+  }
+  .hero-label::before { display: inline-block; content: '[*]'; width: auto; height: auto; border-radius: 0; background: none; color: var(--accent); box-shadow: none; }
+  h1, h2, .stat-num { font-family: 'IBM Plex Mono', monospace; text-transform: none; }
+  h1 {
+    max-width: 760px; margin-bottom: 25px; color: var(--text);
+    font-size: clamp(42px, 4.6vw, 68px); font-weight: 700; line-height: 1.12; letter-spacing: -0.06em;
+  }
+  h1 .accent { color: var(--text); background: none; -webkit-text-fill-color: currentColor; }
+  .hero-sub { max-width: 690px; margin-bottom: 34px; color: var(--muted); font-size: 15px; line-height: 1.78; }
+  .hero-sub strong { color: var(--text) !important; }
+  .hero-proof { margin: 0 0 32px; gap: 8px; }
+  .proof-pill {
+    padding: 6px 9px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); color: var(--muted);
+    font: 500 10px/1.2 'IBM Plex Mono', monospace; letter-spacing: 0; text-transform: lowercase;
+  }
+  .proof-pill:last-child { border-right: 1px solid var(--border); }
+  .btn-primary, .btn-ghost {
+    border-radius: 4px; padding: 12px 17px; font: 600 12px/1 'IBM Plex Mono', monospace;
+    letter-spacing: 0; text-transform: none;
+  }
+  .btn-primary { background: var(--text); color: var(--bg); box-shadow: none; }
+  .btn-primary:hover { opacity: .82; transform: none; box-shadow: none; }
+  .btn-ghost { border: 1px solid var(--border); color: var(--muted); }
+  .btn-ghost:hover { border-color: var(--text); background: transparent; color: var(--text); }
+
+  .terminal {
+    --bg: #10100e; --surface: #181815; --border: #34342f; --text: #eeebe6; --muted: #8e8b85;
+    --accent: #d8a657; --green: #8fbf75; --red: #d06b65; --yellow: #d8a657;
+    align-self: center; border: 1px solid var(--border); border-radius: 5px; box-shadow: 0 22px 65px rgba(0,0,0,.32);
+  }
+  .terminal-bar { padding: 12px 15px; }
+  .t-dot { width: 8px; height: 8px; opacity: .7; }
+  .terminal-title, .stream-item, .book-row, .book-spread, .tape-row, .lat-val, .terminal-note, .strategy-strip { font-family: 'IBM Plex Mono', monospace; }
+  .book-sym { color: var(--text); }
+  .book-spread, .lat-box, .strategy-strip { border-radius: 3px; }
+
+  .stats-bar { background: #0b0b0a; border: 0; border-bottom: 1px solid var(--border); color: var(--text); }
+  .stat-item { padding: 25px 14px; border-right: 1px solid var(--border); text-align: left; }
+  .stat-num { color: var(--text); font-size: clamp(22px, 2.2vw, 31px); font-weight: 600; letter-spacing: -0.05em; }
+  .stat-label { color: var(--muted); font: 500 9px/1.5 'IBM Plex Mono', monospace; text-transform: lowercase; }
+  .divider { display: none; }
+  section:not(.hero) { padding: 104px 80px; position: relative; border-bottom: 1px solid var(--border); }
+  #architecture, #features, #performance, #principles, #milestones, #stack {
+    --bg: #0f0f0d; --surface: #171714; --border: #30302b; --text: #f1eeea; --muted: #96938d;
+    background: var(--bg); color: var(--text);
+  }
+  #features, #principles, #stack { background: #0b0b0a; }
+  .section-tag {
+    display: flex; align-items: center; gap: 9px; color: var(--muted);
+    font: 500 11px/1 'IBM Plex Mono', monospace; letter-spacing: 0; text-transform: lowercase;
+  }
+  .section-tag::before { content: '[*]'; width: auto; height: auto; background: none; color: var(--accent); }
+  h2 { max-width: 880px; font-size: clamp(32px, 3.8vw, 52px); line-height: 1.16; letter-spacing: -0.055em; font-weight: 700; }
+  .section-sub { max-width: 730px; color: var(--muted); font-size: 14px; line-height: 1.78; }
+  #architecture .arch-grid { border: 1px solid var(--border); border-radius: 4px; background: var(--surface); box-shadow: none; }
+  #architecture .arch-row, #architecture .arch-block { border-color: var(--border); }
+  #architecture .arch-arrow { background: #121210; border-color: var(--border); color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+  .arch-block-name, .feature-name, .ms-title, .stack-name { font-family: 'IBM Plex Mono', monospace; text-transform: none; letter-spacing: -0.025em; }
+  .arch-block-name { font-size: 15px; }
+  .arch-tag, .pill, .ms-badge { border-radius: 3px; }
+  .feature-card, .stack-card, .code-block { border-radius: 4px; }
+  .feature-card { padding: 26px; border: 1px solid var(--border); }
+  .feature-card:hover { border-color: #666259; transform: translateY(-2px); }
+  .feature-icon { width: 34px; height: 34px; border-radius: 3px; background: #25241f !important; color: var(--accent); font-size: 16px; }
+  .feature-name { font-size: 16px; }
+  .pill { font-family: 'IBM Plex Mono', monospace; background: #10100e; }
+  .bench-scroll { border: 1px solid var(--border); border-radius: 4px; box-shadow: none; }
+  .bench-table { border: 0; border-radius: 0; background: var(--surface); }
+  .bench-table th { background: #0b0b0a; color: var(--muted); border-color: var(--border); font-family: 'IBM Plex Mono', monospace; }
+  .bench-table td { border-color: var(--border); }
+  .bench-table tr:hover td { background: rgba(216,166,87,.035); }
+  #principles .code-block { border: 1px solid var(--border); }
+  #principles .code-hdr { background: #171714; }
+  .ms-num { width: 31px; height: 31px; border-radius: 3px; font-family: 'IBM Plex Mono', monospace; }
+  .ms-title { font-size: 15px; }
+  .ms-item { border-color: var(--border); }
+  .ms-badge { font-family: 'IBM Plex Mono', monospace; }
+  .stack-card { border: 1px solid var(--border); padding: 23px 18px; }
+  .stack-card:hover { border-color: #666259; transform: translateY(-2px); }
+  .stack-name { font-size: 14px; }
+  footer { padding: 42px 80px; background: #090908; border-top: 0; color: var(--text); }
+  .footer-logo { color: var(--text); font: 600 13px/1 'IBM Plex Mono', monospace; letter-spacing: -0.03em; text-transform: lowercase; }
+  .footer-links { color: var(--muted); font: 500 11px/1 'IBM Plex Mono', monospace; text-transform: lowercase; letter-spacing: 0; }
+  .footer-links a:hover { color: var(--text); }
+
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
 
   @media (max-width: 900px) {
-    .hero { min-height: auto; grid-template-columns: 1fr; padding: 64px 24px 78px; gap: 64px; }
-    nav { padding: 12px 24px; }
+    body { border: 0; }
+    .hero { min-height: auto; grid-template-columns: 1fr; padding: 68px 24px 72px; gap: 56px; }
+    nav { padding: 0 24px; }
     nav .nav-links { display: none; }
-    section, section:not(.hero) { padding: 76px 24px; }
+    section, section:not(.hero) { padding: 72px 24px; }
     .divider { margin: 0 24px; }
-    h1 { font-size: clamp(58px, 18vw, 82px); }
-    h2 { font-size: 48px; }
+    h1 { font-size: clamp(38px, 11vw, 54px); }
+    h2 { font-size: clamp(30px, 8vw, 42px); }
     .features-grid { grid-template-columns: 1fr; }
     .stats-bar { flex-wrap: wrap; }
     .stack-grid { grid-template-columns: repeat(2,1fr); }
     .code-grid { grid-template-columns: 1fr; }
     .terminal-note { flex-direction: column; }
     .terminal-note span:last-child { text-align: left; }
-    .terminal { box-shadow: 9px 9px 0 #050505, -7px -7px 0 rgba(17,181,228,0.92); }
-    .proof-pill { border-right: 1px solid #050505; margin: 0 4px 4px 0; }
+    .terminal { box-shadow: 0 18px 45px rgba(0,0,0,.3); }
+    .proof-pill { border-right: 1px solid var(--border); margin: 0; }
     footer { flex-direction: column; gap: 16px; text-align: center; }
   }
 </style>
@@ -589,17 +716,17 @@
 <nav>
   <div class="nav-logo">
     <div class="dot"></div>
-    MINI HFT
+    mini-hft
   </div>
   <div class="nav-links">
-    <a href="#architecture">Architecture</a>
-    <a href="#performance">Performance</a>
-    <a href="#features">Features</a>
-    <a href="#milestones">Roadmap</a>
+    <a href="#architecture">architecture</a>
+    <a href="#performance">benchmarks</a>
+    <a href="#features">components</a>
+    <a href="#milestones">roadmap</a>
   </div>
   <a class="gh-link" href="https://github.com/georgxzh/mini-hft-system" target="_blank" rel="noopener">
     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    View on GitHub
+    GitHub ↗
   </a>
 </nav>
 
@@ -607,8 +734,8 @@
 <section class="hero" id="home">
   <div class="hero-grid-bg"></div>
   <div style="position:relative;z-index:1;">
-    <div class="hero-label">C++20 MATCHING · PYTHON CONTROL PLANE</div>
-    <h1>Market structure.<br><span class="accent">Measured in</span><br>microseconds.</h1>
+    <div class="hero-label">c++20 matching / python control plane</div>
+    <h1>A small exchange,<br><span class="accent">built to move fast.</span></h1>
     <p class="hero-sub">
       A price-time-priority matching engine behind a swappable binary HAL, measured at
       <strong style="color:var(--text);">1.6µs p50 and 542K orders/sec</strong> — with order-book depth,
@@ -620,8 +747,8 @@
       <span class="proof-pill">BOUNDED EVENT FAN-OUT</span>
     </div>
     <div class="hero-btns">
-      <a href="#architecture" class="btn-primary">Explore Architecture</a>
-      <a href="#performance" class="btn-ghost">View Benchmarks</a>
+      <a href="#architecture" class="btn-primary">Explore the system</a>
+      <a href="#performance" class="btn-ghost">Read benchmarks</a>
     </div>
   </div>
 
