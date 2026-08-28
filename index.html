@@ -737,8 +737,8 @@
     <div class="hero-label">c++20 matching / python control plane</div>
     <h1>A small exchange,<br><span class="accent">built to move fast.</span></h1>
     <p class="hero-sub">
-      A price-time-priority matching engine behind a swappable binary HAL, measured at
-      <strong style="color:var(--text);">1.6µs p50 and 542K orders/sec</strong> — with order-book depth,
+      A price-time-priority matching engine behind a swappable binary HAL, with its optimized
+      C++20 frame path measured at <strong style="color:var(--text);">1.6µs p50 and 542K orders/sec</strong> — with order-book depth,
       execution tape, strategy P&amp;L, and latency telemetry streamed over WebSockets.
     </p>
     <div class="hero-proof" aria-label="Core system capabilities">
@@ -910,8 +910,8 @@
           submit_order(Order) → MatchResult · O(log P) insert · O(1) cancel via stable node pointers
         </div>
         <span class="arch-tag tag-hot">HOT PATH</span>
-        <span class="arch-tag tag-hot" style="margin-left:4px;">~1.6µs frame p50</span>
-        <span class="arch-tag tag-hot" style="margin-left:4px;">542K ops/sec</span>
+        <span class="arch-tag tag-hot" style="margin-left:4px;">1.6µs frame p50</span>
+        <span class="arch-tag tag-hot" style="margin-left:4px;">542K frame ops/sec</span>
       </div>
     </div>
 

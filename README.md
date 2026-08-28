@@ -103,7 +103,7 @@ The native engine implements price-time-priority matching with intrusive FIFO pr
 
 The 64-byte `ORDER_FRAME` is a transport ABI, not a native-memory alias. Python encodes numeric fields in big-endian/network order and the C++ binding explicitly decodes them into host-endian state. Match and snapshot frames are encoded explicitly on return. This preserves the same inspectable boundary for a later shared-memory or DMA transport while avoiding unsafe struct reinterpretation on little-endian CPUs. Symbols in this ABI are limited to six ASCII bytes.
 
-The benchmark reports both service-level `submit_order(Order)` timings (including native frame conversion and domain-result hydration) and `frame_*` timings through the pre-encoded binary transport boundary:
+The benchmark reports both service-level `submit_order(Order)` timings (including native frame conversion and domain-result hydration) and `frame_*` timings through the pre-encoded binary transport boundary. It also reports wall-clock batch throughput and can verify the published performance claim:
 
 ```bash
 python -m pip install ".[cpp]"
@@ -112,13 +112,14 @@ engine\cpp\build_windows.bat
 # POSIX or an initialized compiler shell:
 python engine/cpp/setup.py build_ext --inplace
 python tests/benchmarks/benchmark_engine.py --backend both --rounds 5000
+python tests/benchmarks/benchmark_engine.py --backend cpp --rounds 5000 --warmup 500 --verify-claim
 ```
 
 It reports `p50`, `p99`, `p999`, and throughput for resting inserts, single fills, and ten-level sweeps. The two views separate service projection overhead from transport/native matching cost, providing evidence for any later allocation or binary-service optimization.
 
 Representative Windows/MSVC run on May 26, 2026 (`5,000` rounds per scenario):
 
-| Path / backend | Scenario | p50 us | p99 us | p999 us | ops/sec |
+| Path / backend | Scenario | p50 us | p99 us | p999 us | timed ops/sec |
 |---|---:|---:|---:|---:|---:|
 | Object / Python | Resting | 231.3 | 656.6 | 4,450.3 | 3,492 |
 | Object / C++ | Resting | 19.2 | 35.7 | 73.0 | 49,870 |
@@ -134,6 +135,8 @@ Representative Windows/MSVC run on May 26, 2026 (`5,000` rounds per scenario):
 | Frame / C++ | Ten-level sweep | 3.2 | 8.1 | 13.7 | 282,892 |
 
 The native frame path is substantially faster. The object-level fill path is presently dominated by constructing Python `Trade` objects and snapshots after native execution; moving a service flow to binary projections should be justified separately rather than hidden inside this milestone.
+
+`timed ops/sec` above is the reciprocal of summed per-call timings from the May 2026 run. The current benchmark additionally reports `wall ops/sec` from one timer around the complete measured scenario. See [Matching Engine Performance](docs/performance.md) and the machine-readable reports in `docs/benchmarks/` for the exact methodology and environment.
 
 ### 3. Pure Computation Boundary
 
