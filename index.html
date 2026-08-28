@@ -4,9 +4,9 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Mini HFT System — Ultra-Low Latency Electronic Trading Platform</title>
-<meta name="description" content="C++20 and Python matching engine with a swappable binary HAL, 1.6µs p50 latency, 542K orders per second, and a WebSocket-streamed trading dashboard."/>
+<meta name="description" content="C++20 and Python matching engine with a swappable binary HAL, 1.2µs p50 latency, 748K resting orders per second, and a WebSocket-streamed trading dashboard."/>
 <meta property="og:title" content="Mini HFT System"/>
-<meta property="og:description" content="Ultra-low latency electronic trading platform. C++ CLOB engine, 1.6µs p50, 542K ops/sec."/>
+<meta property="og:description" content="Ultra-low latency electronic trading platform. C++ CLOB engine, 1.2µs p50, 748K resting ops/sec."/>
 <meta property="og:type" content="website"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -738,7 +738,7 @@
     <h1>A small exchange,<br><span class="accent">built to move fast.</span></h1>
     <p class="hero-sub">
       A price-time-priority matching engine behind a swappable binary HAL, with its optimized
-      C++20 frame path measured at <strong style="color:var(--text);">1.6µs p50 and 542K orders/sec</strong> — with order-book depth,
+      C++20 frame path measured at <strong style="color:var(--text);">1.2µs p50 and 748K resting orders/sec</strong> — with order-book depth,
       execution tape, strategy P&amp;L, and latency telemetry streamed over WebSockets.
     </p>
     <div class="hero-proof" aria-label="Core system capabilities">
@@ -827,12 +827,12 @@
 <!-- STATS BAR -->
 <div class="stats-bar">
   <div class="stat-item">
-    <div class="stat-num">1.6µs</div>
+    <div class="stat-num">1.2µs</div>
     <div class="stat-label">C++ Frame p50 Latency</div>
   </div>
   <div class="stat-item">
-    <div class="stat-num">542K</div>
-    <div class="stat-label">Orders / Second (Native)</div>
+    <div class="stat-num">748K</div>
+    <div class="stat-label">Resting Orders / Second</div>
   </div>
   <div class="stat-item">
     <div class="stat-num">M8</div>
@@ -910,8 +910,8 @@
           submit_order(Order) → MatchResult · O(log P) insert · O(1) cancel via stable node pointers
         </div>
         <span class="arch-tag tag-hot">HOT PATH</span>
-        <span class="arch-tag tag-hot" style="margin-left:4px;">1.6µs frame p50</span>
-        <span class="arch-tag tag-hot" style="margin-left:4px;">542K frame ops/sec</span>
+        <span class="arch-tag tag-hot" style="margin-left:4px;">1.2µs frame p50</span>
+        <span class="arch-tag tag-hot" style="margin-left:4px;">748K resting ops/sec</span>
       </div>
     </div>
 
