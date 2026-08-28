@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-08-28T14:51:51.759308+00:00",
+  "git_commit": "fbebb5ac4065d658401bca5f717afc29fc4a741b",
+  "git_worktree_dirty": false,
+  "benchmark": {
+    "rounds": 5000,
+    "warmup": 500,
+    "timer": "time.perf_counter_ns",
+    "timed_ops_per_second": "rounds divided by summed per-call duration",
+    "wall_ops_per_second": "rounds divided by a separate wall-clock submission pass; order construction, encoding, engine creation, and book seeding are excluded"
+  },
+  "environment": {
+    "cpu": "AMD Ryzen 9 PRO 8945HS w/ Radeon 780M Graphics",
+    "os": "Windows-11-10.0.26200-SP0",
+    "architecture": "AMD64",
+    "python": "3.12.13",
+    "python_implementation": "CPython",
+    "compiler": "MSVC /O2 /std:c++20"
+  },
+  "results": [
+    {
+      "backend": "cpp",
+      "scenario": "resting_no_fill",
+      "rounds": 5000,
+      "p50_us": 15.1,
+      "p99_us": 30.8,
+      "p999_us": 79.9,
+      "throughput_ops": 62900.439925676845,
+      "wall_throughput_ops": 64066.83452177311
+    },
+    {
+      "backend": "cpp",
+      "scenario": "single_fill",
+      "rounds": 5000,
+      "p50_us": 26.0,
+      "p99_us": 60.3,
+      "p999_us": 178.7,
+      "throughput_ops": 35569.391258324125,
+      "wall_throughput_ops": 34464.31427043182
+    },
+    {
+      "backend": "cpp",
+      "scenario": "market_sweep_10",
+      "rounds": 5000,
+      "p50_us": 138.7,
+      "p99_us": 247.6,
+      "p999_us": 333.7,
+      "throughput_ops": 6904.459949713438,
+      "wall_throughput_ops": 6893.115624845766
+    },
+    {
+      "backend": "cpp",
+      "scenario": "frame_resting",
+      "rounds": 5000,
+      "p50_us": 1.2,
+      "p99_us": 7.4,
+      "p999_us": 35.6,
+      "throughput_ops": 672657.8055211753,
+      "wall_throughput_ops": 748323.754789272
+    },
+    {
+      "backend": "cpp",
+      "scenario": "frame_single_fill",
+      "rounds": 5000,
+      "p50_us": 1.2,
+      "p99_us": 2.6,
+      "p999_us": 10.2,
+      "throughput_ops": 753182.1947729156,
+      "wall_throughput_ops": 420542.6682591216
+    },
+    {
+      "backend": "cpp",
+      "scenario": "frame_sweep_10",
+      "rounds": 5000,
+      "p50_us": 2.9,
+      "p99_us": 8.7,
+      "p999_us": 20.7,
+      "throughput_ops": 304025.2949045361,
+      "wall_throughput_ops": 173500.26372040084
+    }
+  ]
+}
